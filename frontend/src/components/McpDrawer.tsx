@@ -160,7 +160,7 @@ export default function McpDrawer({ isOpen, onClose }: Props) {
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-900">Model Context Protocol (MCP)</h2>
-            <p className="text-xs text-slate-500 font-semibold">Connect external tool sandboxes & solvers to DeepTutor AI</p>
+            <p className="text-xs text-slate-500 font-semibold">Connect external tool sandboxes & solvers to Adhyapikha.ai</p>
           </div>
         </div>
 

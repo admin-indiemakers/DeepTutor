@@ -32,9 +32,9 @@ export default function TopicsPage() {
   const startChat = async (topic: any) => {
     try {
       const res = await chatApi.createSession(topic.id, `Chat: ${topic.title}`)
-      navigate(`/chat/${res.data.id}`)
+      navigate(`/app/chat/${res.data.id}`)
     } catch {
-      navigate('/chat')
+      navigate('/app/chat')
     }
   }
 

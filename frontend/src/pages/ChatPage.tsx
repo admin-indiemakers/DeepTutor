@@ -109,7 +109,7 @@ export default function ChatPage() {
   const [liveGraphContext, setLiveGraphContext] = useState<GraphContextData>({ entities: [], relationships: [] })
   const [liveSources, setLiveSources] = useState<Source[]>([])
   const [extMessages, setExtMessages] = useState<ExtendedMessage[]>([])
-  const [selectedModel, setSelectedModel] = useState('DeepTutor AI (Llama 3.1)')
+  const [selectedModel, setSelectedModel] = useState('Adhyapikha.ai (Llama 3.1)')
 
   // Mobile Drawers State
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
@@ -194,7 +194,7 @@ export default function ChatPage() {
         skipNextFetchRef.current = currentSessionId
         setActiveSession(res.data)
         await refetchSessions()
-        navigate(`/chat/${res.data.id}`)
+        navigate(`/app/chat/${res.data.id}`)
       } catch (err) {
         console.error('Auto session creation failed', err)
         return
@@ -363,9 +363,9 @@ export default function ChatPage() {
       if (activeSession?.id === sId) {
         const remaining = sessions.filter((s) => s.id !== sId)
         if (remaining.length > 0) {
-          navigate(`/chat/${remaining[0].id}`)
+          navigate(`/app/chat/${remaining[0].id}`)
         } else {
-          navigate('/chat')
+          navigate('/app/chat')
         }
       }
     } catch (err) {
@@ -399,7 +399,7 @@ export default function ChatPage() {
         skipNextFetchRef.current = targetSessionId
         setActiveSession(newSess.data)
         await refetchSessions()
-        navigate(`/chat/${newSess.data.id}`)
+        navigate(`/app/chat/${newSess.data.id}`)
       }
 
       const topicId = activeSession?.topic_id || targetSessionId || activeSession?.id || 'general'
@@ -448,7 +448,7 @@ export default function ChatPage() {
   const allMessages = streamingMsg ? [...extMessages, streamingMsg] : extMessages
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full bg-[#f8fafc] overflow-hidden text-slate-800 font-sans">
+    <div className="flex flex-col md:flex-row h-full w-full bg-white overflow-hidden text-slate-800 font-sans">
       
       {/* ─── MOBILE BACKDROP OVERLAYS ────────────────────────────────────────── */}
       <AnimatePresence>
@@ -471,14 +471,14 @@ export default function ChatPage() {
       >
         <div className="flex flex-col h-full overflow-hidden">
           
-          {/* DeepTutor Brand Header (Easlo Hero Style) */}
+          {/* Adhyapikha.ai Brand Header */}
           <div className="flex items-center justify-between px-2 py-2 mb-4 border-b border-slate-200/80 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#111111] flex items-center justify-center text-white shadow-sm">
-                <GraduationCap size={22} />
+              <div className="w-10 h-10 rounded-2xl bg-[#0d9488] flex items-center justify-center text-white shadow-sm">
+                <Brain size={22} />
               </div>
               <div>
-                <span className="font-black text-slate-900 text-lg tracking-tight">DeepTutor</span>
+                <span className="font-black text-slate-900 text-lg tracking-tight">Adhyapikha.ai</span>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#f4f4f5] text-[#18181b] px-2 py-0.5 rounded-full border border-[#e4e4e7] ml-2">AI</span>
               </div>
             </div>
@@ -497,7 +497,7 @@ export default function ChatPage() {
               setExtMessages([])
               setMessages([])
               setMobileLeftOpen(false)
-              navigate('/chat')
+              navigate('/app/chat')
             }}
             className="w-full bg-[#111111] hover:bg-[#27272a] text-white font-bold text-sm py-3 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] mb-4"
           >
@@ -529,7 +529,7 @@ export default function ChatPage() {
                       key={s.id}
                       session={s}
                       activeId={activeSession?.id}
-                      onSelect={() => { navigate(`/chat/${s.id}`); setMobileLeftOpen(false); }}
+                      onSelect={() => { navigate(`/app/chat/${s.id}`); setMobileLeftOpen(false); }}
                       onDelete={(e) => handleDeleteSession(e, s.id)}
                     />
                   ))}
@@ -546,7 +546,7 @@ export default function ChatPage() {
                       key={s.id}
                       session={s}
                       activeId={activeSession?.id}
-                      onSelect={() => { navigate(`/chat/${s.id}`); setMobileLeftOpen(false); }}
+                      onSelect={() => { navigate(`/app/chat/${s.id}`); setMobileLeftOpen(false); }}
                       onDelete={(e) => handleDeleteSession(e, s.id)}
                     />
                   ))}
@@ -563,7 +563,7 @@ export default function ChatPage() {
                       key={s.id}
                       session={s}
                       activeId={activeSession?.id}
-                      onSelect={() => { navigate(`/chat/${s.id}`); setMobileLeftOpen(false); }}
+                      onSelect={() => { navigate(`/app/chat/${s.id}`); setMobileLeftOpen(false); }}
                       onDelete={(e) => handleDeleteSession(e, s.id)}
                     />
                   ))}
@@ -580,7 +580,7 @@ export default function ChatPage() {
                       key={s.id}
                       session={s}
                       activeId={activeSession?.id}
-                      onSelect={() => { navigate(`/chat/${s.id}`); setMobileLeftOpen(false); }}
+                      onSelect={() => { navigate(`/app/chat/${s.id}`); setMobileLeftOpen(false); }}
                       onDelete={(e) => handleDeleteSession(e, s.id)}
                     />
                   ))}

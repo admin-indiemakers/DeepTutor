@@ -106,7 +106,7 @@ export default function QuizResultPage() {
           <RotateCcw size={15} /> Retry Quiz
         </button>
         <button
-          onClick={() => navigate('/chat')}
+          onClick={() => navigate('/app/chat')}
           className="btn-primary flex-1 flex items-center justify-center gap-2"
         >
           <MessageSquare size={15} /> Ask AI Tutor

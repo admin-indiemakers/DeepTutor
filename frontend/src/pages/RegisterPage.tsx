@@ -45,10 +45,10 @@ export default function RegisterPage() {
 
   const handleGoogleSignup = () => {
     login(
-      { id: 'google-user', username: 'Google Learner', email: 'google.student@deeptutor.ai', role: 'student' },
+      { id: 'google-user', username: 'Google Learner', email: 'google.student@adhyapikha.ai', role: 'student' },
       'demo-google-token'
     )
-    navigate('/dashboard')
+    navigate('/app/dashboard')
   }
 
   return (
@@ -64,7 +64,7 @@ export default function RegisterPage() {
               <Brain size={22} />
             </div>
             <div>
-              <span className="font-extrabold text-slate-900 text-xl tracking-tight">DeepTutor</span>
+              <span className="font-extrabold text-slate-900 text-xl tracking-tight">Adhyapikha.ai</span>
               <span className="block text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest">AI Learning Engine</span>
             </div>
           </div>
@@ -250,10 +250,10 @@ export default function RegisterPage() {
         {/* Footer info */}
         <footer className="flex items-center justify-between text-xs text-slate-400 font-semibold z-10 pt-2 border-t border-slate-200/60">
           <div className="flex items-center gap-1.5 text-slate-500">
-            <Brain size={16} className="text-indigo-600" />
-            <span>Powered by Local DeepTutor AI</span>
+            <Brain size={16} className="text-[#0d9488]" />
+            <span>Powered by Adhyapikha.ai</span>
           </div>
-          <span>© 2026 DeepTutor Inc.</span>
+          <span>© 2026 Adhyapikha.ai Inc.</span>
         </footer>
 
       </div>

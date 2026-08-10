@@ -71,11 +71,11 @@ export default function LandingPage() {
             className="flex items-center gap-2 sm:gap-3 cursor-pointer group"
             onClick={() => navigate('/')}
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#111111] flex items-center justify-center text-white shadow-sm transition-transform active:scale-95 flex-shrink-0">
-              <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#0d9488] flex items-center justify-center text-white shadow-sm transition-transform active:scale-95 flex-shrink-0">
+              <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="font-black text-base sm:text-xl text-[#111111] tracking-tight">DeepTutor</span>
+              <span className="font-black text-base sm:text-xl text-gray-900 tracking-tight">Adhyapikha.ai</span>
               <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider bg-[#f4f4f5] text-[#18181b] px-1.5 sm:px-2 py-0.5 rounded-full border border-[#e4e4e7]">
                 AI
               </span>
@@ -91,7 +91,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2 sm:gap-3">
             {isAuthenticated ? (
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/app/dashboard')}
                 className="bg-[#111111] text-white hover:bg-[#27272a] py-2 sm:py-2.5 px-4 sm:px-6 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all active:scale-95 whitespace-nowrap"
               >
                 <span>Dashboard</span> <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -129,12 +129,12 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-lg md:text-xl text-[#52525b] font-medium leading-relaxed max-w-2xl mx-auto">
-          DeepTutor turns your textbook PDFs into day-by-day study roadmaps, AI tutoring sessions, interactive flashcards, and real-time progress analytics.
+          Adhyapikha.ai turns your textbook PDFs into day-by-day study roadmaps, AI tutoring sessions, interactive flashcards, and real-time progress analytics.
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
           <button
-            onClick={() => navigate(isAuthenticated ? '/dashboard' : '/register')}
+            onClick={() => navigate(isAuthenticated ? '/app/dashboard' : '/register')}
             className="bg-[#111111] text-white hover:bg-[#27272a] py-4 px-8 rounded-full text-base font-bold flex items-center gap-3 shadow-md transition-all active:scale-95"
           >
             <Brain size={20} />
@@ -155,13 +155,13 @@ export default function LandingPage() {
             <div className="w-3 h-3 rounded-full bg-[#e4e4e7]" />
             <div className="w-3 h-3 rounded-full bg-[#e4e4e7]" />
             <div className="w-3 h-3 rounded-full bg-[#e4e4e7]" />
-            <span className="text-xs font-semibold text-[#71717a] ml-2">DeepTutor AI — Dashboard View</span>
+            <span className="text-xs font-semibold text-[#71717a] ml-2">Adhyapikha.ai — Dashboard View</span>
           </div>
 
           <div className="rounded-b-2xl overflow-hidden bg-[#fafafa]">
             <img
               src="/images/dashboard_screenshot.png"
-              alt="DeepTutor AI Dashboard"
+              alt="Adhyapikha.ai Dashboard"
               className="w-full h-auto object-cover rounded-b-2xl"
             />
           </div>
@@ -247,7 +247,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-xl font-black text-[#111111]">Upload PDF Materials</h3>
             <p className="text-[#52525b] text-sm font-medium leading-relaxed">
-              Upload textbook chapters or course materials into DeepTutor to start indexing.
+              Upload textbook chapters or course materials into Adhyapikha.ai to start indexing.
             </p>
           </div>
 
@@ -277,10 +277,10 @@ export default function LandingPage() {
       <footer className="py-16 border-t border-[#e5e7eb] bg-white">
         <div className="max-w-5xl mx-auto px-6 text-center space-y-6">
           <div className="flex items-center justify-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-[#111111] flex items-center justify-center text-white">
-              <GraduationCap size={20} />
+            <div className="w-9 h-9 rounded-2xl bg-[#0d9488] flex items-center justify-center text-white">
+              <Brain size={18} />
             </div>
-            <span className="font-black text-2xl text-[#111111]">DeepTutor AI</span>
+            <span className="font-black text-2xl text-[#111111]">Adhyapikha.ai</span>
           </div>
 
           <p className="text-[#71717a] text-sm max-w-md mx-auto font-medium">
@@ -288,14 +288,14 @@ export default function LandingPage() {
           </p>
 
           <button
-            onClick={() => navigate(isAuthenticated ? '/dashboard' : '/register')}
+            onClick={() => navigate(isAuthenticated ? '/app/dashboard' : '/register')}
             className="bg-[#111111] text-white hover:bg-[#27272a] py-3.5 px-8 rounded-full text-sm font-bold transition-all active:scale-95"
           >
             Start Learning Free Today
           </button>
 
           <p className="text-xs text-[#a1a1aa] font-semibold pt-6">
-            © {new Date().getFullYear()} DeepTutor AI. All rights reserved.
+            © {new Date().getFullYear()} Adhyapikha.ai. All rights reserved.
           </p>
         </div>
       </footer>

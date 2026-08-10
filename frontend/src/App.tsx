@@ -17,6 +17,19 @@ import QuizResultPage from './pages/QuizResultPage'
 import ProgressPage from './pages/ProgressPage'
 import FlashcardsPage from './pages/FlashcardsPage'
 import LeaderboardPage from './pages/LeaderboardPage'
+import TakeQuizPage from './pages/TakeQuizPage'
+import SeeItVisuallyPage from './pages/SeeItVisuallyPage'
+import WriteTogetherPage from './pages/WriteTogetherPage'
+import MyBooksPage from './pages/MyBooksPage'
+import MyStuffPage from './pages/MyStuffPage'
+import SettingsPage from './pages/SettingsPage'
+import PaymentInfoPage from './pages/PaymentInfoPage'
+import RegistrationPage from './pages/RegistrationPage'
+import CoursesPage from './pages/CoursesPage'
+import DropSemesterPage from './pages/DropSemesterPage'
+import ResultPage from './pages/ResultPage'
+import NoticePage from './pages/NoticePage'
+import SchedulePage from './pages/SchedulePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,7 +84,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />
+  return !isAuthenticated ? <>{children}</> : <Navigate to="/app/dashboard" replace />
+}
+
+import { useParams } from 'react-router-dom'
+function ChatRedirect() {
+  const { sessionId } = useParams()
+  return <Navigate to={sessionId ? `/app/chat/${sessionId}` : '/app/chat'} replace />
 }
 
 
@@ -89,7 +108,7 @@ export default function App() {
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
-          {/* Protected Application Routes */}
+          {/* Protected Application Routes — all nested under Layout shell */}
           <Route path="/app" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Navigate to="/app/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
@@ -98,26 +117,34 @@ export default function App() {
             <Route path="leaderboard" element={<LeaderboardPage />} />
             <Route path="quiz/:topicId" element={<QuizPage />} />
             <Route path="quiz/:topicId/result" element={<QuizResultPage />} />
-            <Route path="flashcards/:topicId" element={<FlashcardsPage />} />
+            <Route path="flashcards/:topicId?" element={<FlashcardsPage />} />
             <Route path="progress" element={<ProgressPage />} />
+
+            {/* New Adhyapikha.ai routes */}
+            <Route path="take-quiz" element={<TakeQuizPage />} />
+            <Route path="see-visually" element={<SeeItVisuallyPage />} />
+            <Route path="write-together" element={<WriteTogetherPage />} />
+            <Route path="my-books" element={<MyBooksPage />} />
+            <Route path="my-stuff" element={<MyStuffPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+
+            {/* Portal pages */}
+            <Route path="payment-info" element={<PaymentInfoPage />} />
+            <Route path="registration" element={<RegistrationPage />} />
+            <Route path="courses" element={<CoursesPage />} />
+            <Route path="drop-semester" element={<DropSemesterPage />} />
+            <Route path="result" element={<ResultPage />} />
+            <Route path="notice" element={<NoticePage />} />
+            <Route path="schedule" element={<SchedulePage />} />
           </Route>
 
-          {/* Root-level redirects for convenience */}
-          <Route path="/dashboard" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<DashboardPage />} />
-          </Route>
-          <Route path="/study-plan" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<StudyPlanPage />} />
-          </Route>
-          <Route path="/chat/:sessionId?" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<ChatPage />} />
-          </Route>
-          <Route path="/leaderboard" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<LeaderboardPage />} />
-          </Route>
-          <Route path="/progress" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<ProgressPage />} />
-          </Route>
+          {/* Root-level redirects for convenience (keep backward compat) */}
+          <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+          <Route path="/study-plan" element={<Navigate to="/app/study-plan" replace />} />
+          <Route path="/chat/:sessionId?" element={<ChatRedirect />} />
+          <Route path="/chat" element={<ChatRedirect />} />
+          <Route path="/leaderboard" element={<Navigate to="/app/leaderboard" replace />} />
+          <Route path="/progress" element={<Navigate to="/app/progress" replace />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -125,4 +152,3 @@ export default function App() {
     </QueryClientProvider>
   )
 }
-

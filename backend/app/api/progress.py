@@ -78,6 +78,22 @@ async def get_progress_summary(user: dict = Depends(get_current_user)):
     if streak_days == 0 and (total_sessions > 0 or quizzes_taken > 0 or flashcards_mastered > 0):
         streak_days = 1
 
+    # Calculate best streak ever
+    sorted_dates = sorted([datetime.strptime(d, "%Y-%m-%d").date() for d in activity_dates if d])
+    best_streak_days = streak_days
+    if sorted_dates:
+        current_run = 1
+        run_best = 1
+        for idx in range(1, len(sorted_dates)):
+            diff = sorted_dates[idx] - sorted_dates[idx-1]
+            if diff.days == 1:
+                current_run += 1
+            elif diff.days > 1:
+                current_run = 1
+            if current_run > run_best:
+                run_best = current_run
+        best_streak_days = max(streak_days, run_best)
+
     # 5. XP & Level System Calculation
     session_xp = total_sessions * 50
     quiz_xp = sum(100 + int(a.get("percentage", 0) * 2) for a in attempts)
@@ -109,6 +125,7 @@ async def get_progress_summary(user: dict = Depends(get_current_user)):
         "avg_score": avg_score,
         "topics_studied": topics_studied,
         "streak_days": streak_days,
+        "best_streak_days": best_streak_days,
         "flashcards_mastered": flashcards_mastered,
         "completed_plan_days": completed_plan_days,
         "total_xp": total_xp,
@@ -208,7 +225,7 @@ async def get_activity_calendar(user: dict = Depends(get_current_user)):
     today = datetime.utcnow().date()
     calendar_days = []
 
-    for i in range(34, -1, -1):
+    for i in range(369, -1, -1):
         target_d = today - timedelta(days=i)
         d_str = target_d.strftime("%Y-%m-%d")
         count = activity_counts.get(d_str, 0)
