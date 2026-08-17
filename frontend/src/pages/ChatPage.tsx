@@ -151,13 +151,12 @@ function UploadStatusCard({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.96 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
-      className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 shadow-xs transition-all ${
-        isDone
+      className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 shadow-xs transition-all ${isDone
           ? 'bg-gradient-to-r from-[#F4FAF5] via-white to-[#F4FAF5] border-[#4F8A68]/40'
           : isError
-          ? 'bg-gradient-to-r from-[#FFF5F4] via-white to-[#FFF5F4] border-[#C85C52]/40'
-          : 'bg-gradient-to-r from-[#FFFDF9] via-white to-[#FFF9F2] border-[#F28A45]/35'
-      }`}
+            ? 'bg-gradient-to-r from-[#FFF5F4] via-white to-[#FFF5F4] border-[#C85C52]/40'
+            : 'bg-gradient-to-r from-[#FFFDF9] via-white to-[#FFF9F2] border-[#F28A45]/35'
+        }`}
     >
       {/* Background glowing ambient light while processing */}
       {!isDone && !isError && (
@@ -165,18 +164,17 @@ function UploadStatusCard({
       )}
 
       <div className="flex items-start justify-between gap-3 relative z-10">
-        
+
         {/* Left Icon with animated spinner */}
         <div className="flex items-center gap-3.5 flex-1 min-w-0">
           <div className="relative flex-shrink-0">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center border shadow-2xs transition-transform ${
-                isDone
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center border shadow-2xs transition-transform ${isDone
                   ? 'bg-[#E3F0E5] text-[#4F8A68] border-[#4F8A68]/30 scale-105'
                   : isError
-                  ? 'bg-[#FBE7E4] text-[#C85C52] border-[#C85C52]/30'
-                  : 'bg-[#FFF0E4] text-[#F28A45] border-[#F28A45]/30'
-              }`}
+                    ? 'bg-[#FBE7E4] text-[#C85C52] border-[#C85C52]/30'
+                    : 'bg-[#FFF0E4] text-[#F28A45] border-[#F28A45]/30'
+                }`}
             >
               {isDone ? (
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}>
@@ -244,13 +242,12 @@ function UploadStatusCard({
       {/* Animated Gradient Progress Bar with Shimmer */}
       <div className="mt-3.5 w-full bg-[#F4EFE7] h-2.5 rounded-full overflow-hidden p-0.5 border border-[#E7E1D8] relative">
         <motion.div
-          className={`h-full rounded-full transition-all relative ${
-            isDone
+          className={`h-full rounded-full transition-all relative ${isDone
               ? 'bg-[#4F8A68]'
               : isError
-              ? 'bg-[#C85C52]'
-              : 'bg-gradient-to-r from-[#F28A45] via-[#FFB070] to-[#F28A45]'
-          }`}
+                ? 'bg-[#C85C52]'
+                : 'bg-gradient-to-r from-[#F28A45] via-[#FFB070] to-[#F28A45]'
+            }`}
           initial={{ width: '8%' }}
           animate={{ width: `${displayProgress}%` }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -552,7 +549,7 @@ export default function ChatPage() {
     })
   }, [sessionId, input, isStreaming, activeSession, token, navigate, refetchSessions, setActiveSession, addMessage, appendStreamToken, clearStreamingContent, setStreaming])
 
-  // Load session messages when sessionId changes
+  // Load session messages when sessionId 
   useEffect(() => {
     if (!sessionId) {
       setActiveSession(null)
@@ -709,11 +706,10 @@ export default function ChatPage() {
       const successMsg: ExtendedMessage = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: `📄 **${fileName}** is fully processed and indexed!\n\n${
-          stats?.chunks_indexed
+        content: `📄 **${fileName}** is fully processed and indexed!\n\n${stats?.chunks_indexed
             ? `📊 **Knowledge Breakdown:**\n- **Chunks Indexed:** ${stats.chunks_indexed}\n- **Graph Entities:** ${stats.entities_extracted || 0}\n`
             : ''
-        }${stats?.extracted_topics?.length ? `- **Key Topics:** ${stats.extracted_topics.slice(0, 5).join(', ')}\n` : ''}\n💡 *You can now ask questions, generate practice quizzes, or study flashcards for this material.*`,
+          }${stats?.extracted_topics?.length ? `- **Key Topics:** ${stats.extracted_topics.slice(0, 5).join(', ')}\n` : ''}\n💡 *You can now ask questions, generate practice quizzes, or study flashcards for this material.*`,
         created_at: new Date().toISOString(),
       }
       setExtMessages((existing) => [...existing, successMsg])
@@ -795,7 +791,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-[#FAF8F3] overflow-hidden text-[#20201D] font-sans">
-      
+
       {/* ─── MOBILE BACKDROP OVERLAYS ────────────────────────────────────────── */}
       <AnimatePresence>
         {(mobileLeftOpen || mobileRightOpen) && (
@@ -811,9 +807,8 @@ export default function ChatPage() {
 
       {/* ─── MOBILE LEFT DRAWER (CHAT HISTORY) ─── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-[#E7E1D8] p-4 flex flex-col justify-between shadow-2xl transition-transform duration-300 md:hidden ${
-          mobileLeftOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-[#E7E1D8] p-4 flex flex-col justify-between shadow-2xl transition-transform duration-300 md:hidden ${mobileLeftOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#E7E1D8]">
@@ -853,11 +848,10 @@ export default function ChatPage() {
                     navigate(`/chat/${s.id}`)
                     setMobileLeftOpen(false)
                   }}
-                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-all ${
-                    isSelected
+                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-all ${isSelected
                       ? 'bg-[#FFF0E4] text-[#F28A45] font-extrabold border border-[#F28A45]/30 shadow-2xs'
                       : 'text-[#6F6B63] hover:text-[#20201D] hover:bg-[#F4EFE7] font-medium'
-                  }`}
+                    }`}
                 >
                   <span className="truncate pr-2">{s.session_title || 'Untitled Chat'}</span>
                   <button
@@ -888,7 +882,7 @@ export default function ChatPage() {
 
         {/* Top Header Bar */}
         <header className="h-16 border-b border-[#E7E1D8] flex items-center justify-between px-4 sm:px-6 flex-shrink-0 bg-[#FAF8F3]/80 backdrop-blur-md">
-          
+
           <div className="flex items-center gap-3">
             {/* Mobile Left Drawer Trigger */}
             <button
@@ -952,11 +946,11 @@ export default function ChatPage() {
 
         {/* Workspace Content Area */}
         <div className="flex-1 overflow-y-auto flex flex-col">
-          
+
           {/* HERO STATE */}
           {allMessages.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-10 max-w-3xl mx-auto w-full text-center">
-              
+
               {/* Warm Icon Graphic */}
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-[#FFF0E4] border border-[#F28A45]/30 text-[#F28A45] flex items-center justify-center shadow-md mb-4 sm:mb-6">
                 <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-[#F28A45]" />
@@ -972,13 +966,13 @@ export default function ChatPage() {
 
               {/* Clean Multi-Tool Input Container */}
               <div className="w-full bg-white border border-[#E7E1D8] rounded-3xl p-3.5 sm:p-5 shadow-xs focus-within:border-[#F28A45] focus-within:ring-2 focus-within:ring-[#F28A45]/20 transition-all text-left">
-                
+
                 {/* 3 Quick Study Tool Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-[#E7E1D8]">
                   <span className="text-[11px] font-black uppercase text-[#6F6B63] tracking-wider mr-1 flex items-center gap-1">
                     <Sparkles size={13} className="text-[#F28A45]" /> Tools:
                   </span>
-                  
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1046,11 +1040,10 @@ export default function ChatPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={toggleVoiceInput}
-                      className={`p-2.5 sm:p-3 rounded-full text-white transition-all shadow-xs cursor-pointer ${
-                        isListening
+                      className={`p-2.5 sm:p-3 rounded-full text-white transition-all shadow-xs cursor-pointer ${isListening
                           ? 'bg-[#C85C52] animate-bounce ring-4 ring-[#FBE7E4]'
                           : 'bg-[#F28A45] hover:bg-[#DF7635]'
-                      }`}
+                        }`}
                       title={isListening ? 'Stop Recording' : 'Voice Input'}
                     >
                       {isListening ? <MicOff size={16} /> : <Mic size={16} />}
@@ -1070,7 +1063,7 @@ export default function ChatPage() {
 
               {/* Starter Action Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 w-full mt-6 sm:mt-8">
-                
+
                 <SuggestionCard
                   icon={<div className="w-10 h-10 rounded-2xl bg-[#FFF0E4] text-[#F28A45] flex items-center justify-center border border-[#F28A45]/20"><Clock className="w-5 h-5" /></div>}
                   title="Synthesize Notes"
@@ -1122,7 +1115,7 @@ export default function ChatPage() {
         {allMessages.length > 0 && (
           <div className="p-3 sm:p-4 border-t border-[#E7E1D8] bg-white">
             <div className="max-w-4xl mx-auto bg-[#FAF8F3] border border-[#E7E1D8] rounded-2xl p-3 sm:p-3.5 focus-within:border-[#F28A45] focus-within:ring-2 focus-within:ring-[#F28A45]/20 transition-all">
-              
+
               {/* Quick Study Tool Pill Buttons */}
               <div className="flex flex-wrap items-center gap-1.5 mb-2.5 pb-2 border-b border-[#E7E1D8]">
                 <button
@@ -1189,9 +1182,8 @@ export default function ChatPage() {
                   </button>
                   <button
                     onClick={toggleVoiceInput}
-                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                      isListening ? 'text-[#C85C52] bg-[#FBE7E4] animate-pulse' : 'text-[#6F6B63] hover:text-[#20201D] hover:bg-[#F4EFE7]'
-                    }`}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer ${isListening ? 'text-[#C85C52] bg-[#FBE7E4] animate-pulse' : 'text-[#6F6B63] hover:text-[#20201D] hover:bg-[#F4EFE7]'
+                      }`}
                     title="Voice input"
                   >
                     <Mic size={16} />
@@ -1213,9 +1205,8 @@ export default function ChatPage() {
 
       {/* ─── RIGHT SIDEBAR ────────────────────────────────────────────────── */}
       <aside
-        className={`fixed lg:static inset-y-0 right-0 z-50 w-80 bg-[#FAF8F3] border-l border-[#E7E1D8] p-5 flex flex-col justify-between overflow-y-auto shadow-2xl lg:shadow-none transition-transform duration-300 ${
-          mobileRightOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
-        }`}
+        className={`fixed lg:static inset-y-0 right-0 z-50 w-80 bg-[#FAF8F3] border-l border-[#E7E1D8] p-5 flex flex-col justify-between overflow-y-auto shadow-2xl lg:shadow-none transition-transform duration-300 ${mobileRightOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
+          }`}
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-1 pb-3 border-b border-[#E7E1D8]">
@@ -1362,11 +1353,10 @@ function SessionItem({ session, activeId, onSelect, onDelete }: {
   return (
     <div
       onClick={onSelect}
-      className={`group w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
-        isActive
+      className={`group w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive
           ? 'bg-[#FFF0E4] text-[#F28A45] font-extrabold shadow-2xs border border-[#F28A45]/30'
           : 'text-[#6F6B63] hover:bg-[#F4EFE7] hover:text-[#20201D] font-medium'
-      }`}
+        }`}
     >
       <div className="flex items-center gap-2.5 min-w-0 pr-1">
         <MessageSquare size={15} className={isActive ? 'text-[#F28A45]' : 'text-[#969188]'} />
@@ -1374,9 +1364,8 @@ function SessionItem({ session, activeId, onSelect, onDelete }: {
       </div>
       <button
         onClick={onDelete}
-        className={`opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all ${
-          isActive ? 'text-[#F28A45] hover:text-[#C85C52] hover:bg-[#FFF0E4]' : 'text-[#969188] hover:text-[#C85C52] hover:bg-[#FBE7E4]'
-        }`}
+        className={`opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all ${isActive ? 'text-[#F28A45] hover:text-[#C85C52] hover:bg-[#FFF0E4]' : 'text-[#969188] hover:text-[#C85C52] hover:bg-[#FBE7E4]'
+          }`}
         title="Delete session"
       >
         <Trash2 size={14} />
