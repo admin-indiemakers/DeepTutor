@@ -413,15 +413,16 @@ export default function DashboardPage() {
             <div className="space-y-1.5 pt-2">
               <div className="flex items-center justify-between text-xs font-bold">
                 <span className="text-[#6F6B63]">Progress</span>
-                <span className="text-[#20201D] font-black">80%</span>
+                <span className="text-[#20201D] font-black">{goalPct}%</span>
               </div>
               <div className="w-full bg-[#F4EFE7] rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-[#4F8A68] h-full rounded-full transition-all duration-300"
-                  style={{ width: '80%' }}
+                  style={{ width: `${goalPct}%` }}
                 />
               </div>
             </div>
+
           </div>
 
           {/* 2. TUTOR SUGGESTS CARD (MATCHING REFERENCE IMAGE 3) */}
@@ -451,42 +452,73 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* 3. YOUR LEARNING AT A GLANCE CARD (WITH DONUT CHART GRAPHIC) */}
+          {/* 3. YOUR LEARNING AT A GLANCE CARD (DYNAMIC SVG PROGRESS RING) */}
           <div className="bg-white border border-[#E7E1D8] rounded-3xl p-6 shadow-2xs space-y-4">
             <div className="flex items-center gap-2 border-b border-[#E7E1D8] pb-3">
               <LineChart size={16} className="text-[#F28A45]" />
               <h3 className="font-extrabold text-[#20201D] text-xs">Your learning at a glance</h3>
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-3 text-xs font-semibold flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#6F6B63]">Sessions completed</span>
-                  <span className="text-[#4F8A68] font-black">{progress?.total_sessions ?? 0}</span>
-                </div>
+            {(() => {
+              const overallProgress = Math.round(
+                progress?.avg_score ?? (progress?.topics_studied ? Math.min(100, progress.topics_studied * 25) : 0)
+              )
+              return (
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-3 text-xs font-semibold flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#6F6B63]">Sessions completed</span>
+                      <span className="text-[#4F8A68] font-black">{progress?.total_sessions ?? 0}</span>
+                    </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-[#6F6B63]">Active subjects</span>
-                  <span className="text-[#20201D] font-black">{getSubject('6')?.isEnrolled ? 3 : 1}</span>
-                </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#6F6B63]">Active subjects</span>
+                      <span className="text-[#20201D] font-black">{getSubject('6')?.isEnrolled ? 3 : 1}</span>
+                    </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-[#6F6B63]">Topics mastered</span>
-                  <span className="text-[#20201D] font-black">{progress?.topics_studied ?? 0}</span>
-                </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#6F6B63]">Topics mastered</span>
+                      <span className="text-[#20201D] font-black">{progress?.topics_studied ?? 0}</span>
+                    </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-[#6F6B63]">Current streak</span>
-                  <span className="text-[#F28A45] font-black">{progress?.streak_days ?? 0} {progress?.streak_days === 1 ? 'day' : 'days'}</span>
-                </div>
-              </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#6F6B63]">Current streak</span>
+                      <span className="text-[#F28A45] font-black">
+                        {progress?.streak_days ?? 0} {progress?.streak_days === 1 ? 'day' : 'days'}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Analytics Donut Graphic */}
-              <div className="w-20 h-20 flex-shrink-0 select-none pointer-events-none">
-                <img src="/assets/illustrations/donut_80_percent.png" alt="Donut Chart" className="w-full h-full object-contain filter drop-shadow-xs" />
-              </div>
-            </div>
+                  {/* Dynamic SVG Circular Progress Ring */}
+                  <div className="w-20 h-20 flex-shrink-0 flex flex-col items-center justify-center relative select-none">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-[#F4EFE7]"
+                        strokeWidth="3.5"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-[#4F8A68] transition-all duration-700 ease-out"
+                        strokeDasharray={`${overallProgress}, 100`}
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-xs font-black text-[#20201D]">{overallProgress}%</span>
+                      <span className="text-[9px] font-bold text-[#969188]">Progress</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
+
 
         </div>
 
