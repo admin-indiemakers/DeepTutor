@@ -56,11 +56,18 @@ export default function DashboardPage() {
     staleTime: 60000,
   })
 
+  const { data: analysis } = useQuery({
+    queryKey: ['progress-analysis'],
+    queryFn: () => progressApi.analysis().then((r) => r.data),
+    staleTime: 30000,
+  })
+
   const { data: sessions } = useQuery({
     queryKey: ['chat-sessions'],
     queryFn: () => chatApi.sessions().then((r) => r.data),
     staleTime: 60000,
   })
+
 
   const recentSessions = sessions?.slice(0, 4) ?? []
   const lastSession = sessions?.[0] ?? null
@@ -362,15 +369,24 @@ export default function DashboardPage() {
               <div>
                 <h4 className="text-xs font-black text-[#20201D]">Your tutor remembers</h4>
                 <p className="text-xs text-[#6F6B63] font-semibold leading-relaxed mt-0.5">
-                  You already understand linear regression well, but classification is still a bit unclear. Let's strengthen it! 💪
+                  {analysis?.primary_weakness
+                    ? `You are performing well overall, but '${analysis.primary_weakness.subject}' needs a quick review (${analysis.primary_weakness.score}% mastery). Let's strengthen it! 💪`
+                    : `You are performing well in all studied topics! Keep up your active chat sessions and quizzes to maintain top mastery. 🌟`
+                  }
                 </p>
               </div>
             </div>
             <button
-              onClick={() => navigate('/chat', { state: { initialPrompt: 'Review Classification concepts and reinforce understanding.' } })}
+              onClick={() => {
+                const weakSub = analysis?.primary_weakness?.subject
+                const prompt = weakSub
+                  ? `Review ${weakSub} key concepts and reinforce understanding.`
+                  : `Give me a general progress review quiz.`
+                navigate('/chat', { state: { initialPrompt: prompt } })
+              }}
               className="btn-orange-outline text-xs whitespace-nowrap self-stretch sm:self-auto cursor-pointer"
             >
-              Review Classification &rarr;
+              {analysis?.primary_weakness ? `Review ${analysis.primary_weakness.subject} →` : 'Start Practice Quiz →'}
             </button>
           </div>
 
@@ -425,7 +441,7 @@ export default function DashboardPage() {
 
           </div>
 
-          {/* 2. TUTOR SUGGESTS CARD (MATCHING REFERENCE IMAGE 3) */}
+          {/* 2. TUTOR SUGGESTS CARD */}
           <div className="bg-[#FFF9F2] border border-[#F28A45]/30 rounded-3xl p-6 shadow-2xs space-y-4 relative overflow-hidden">
             <div className="flex items-center gap-2">
               <img src="/assets/illustrations/lightbulb.png" alt="Lightbulb" className="w-5 h-5 object-contain" />
@@ -434,7 +450,10 @@ export default function DashboardPage() {
 
             <div className="flex items-start justify-between gap-3">
               <p className="text-xs text-[#6F6B63] leading-relaxed font-semibold flex-1">
-                Review gradient descent before moving on to neural networks. It will strengthen your foundation.
+                {analysis?.primary_weakness
+                  ? `Review '${analysis.primary_weakness.subject}' key concepts to boost recall and lock in foundational mastery.`
+                  : `Create an AI Study Plan or review flashcards to continue advancing your learning.`
+                }
               </p>
               
               {/* Friendly AI Robot Reading Book (Borderless Graphic) */}
@@ -445,10 +464,17 @@ export default function DashboardPage() {
             </div>
 
             <button
-              onClick={() => navigate('/chat', { state: { initialPrompt: 'Review Gradient Descent before moving on to neural networks.' } })}
+              onClick={() => {
+                const weakSub = analysis?.primary_weakness?.subject
+                if (weakSub) {
+                  navigate('/chat', { state: { initialPrompt: `Review ${weakSub} key concepts.` } })
+                } else {
+                  navigate('/study-plan')
+                }
+              }}
               className="btn-orange-outline w-full text-xs font-bold py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
             >
-              <span>Start suggested lesson &rarr;</span>
+              <span>{analysis?.primary_weakness ? `Start ${analysis.primary_weakness.subject} lesson →` : 'Open Study Plan →'}</span>
             </button>
           </div>
 

@@ -811,31 +811,48 @@ def get_leaderboard_rankings(current_user_id: str) -> dict:
         rankings = []
 
         for user in users:
+            sessions = db.query(ChatSession).filter(ChatSession.user_id == user.id).all()
             attempts = db.query(QuizAttempt).filter(QuizAttempt.user_id == user.id).all()
             docs = db.query(Document).filter(Document.user_id == user.id).all()
+            plans = db.query(StudyPlan).filter(StudyPlan.user_id == user.id).all()
 
+            total_sessions = len(sessions)
             quizzes_taken = len(attempts)
+            docs_count = len(docs)
+            completed_plan_days = sum(len(p.completed_days or []) for p in plans)
+
+            # Mastered flashcards count
+            flashcards_mastered = db.query(Flashcard).filter(Flashcard.mastered == True).count()
+
+            # Dynamic XP calculation matching progress.py formula
+            session_xp = total_sessions * 50
+            quiz_xp = sum(100 + int(a.percentage * 2) for a in attempts)
+            flashcard_xp = flashcards_mastered * 20
+            plan_xp = completed_plan_days * 40
+
+            total_xp = session_xp + quiz_xp + flashcard_xp + plan_xp
+
             total_correct = sum(a.score for a in attempts)
             total_questions = sum(a.total_questions for a in attempts)
             avg_accuracy = round((total_correct / total_questions * 100), 1) if total_questions > 0 else 0.0
-            docs_count = len(docs)
 
-            # Calculate XP points
-            total_xp = (total_correct * 100) + (quizzes_taken * 50) + (docs_count * 30)
-
-            # Assign badges
+            # Dynamic Badges & Achievements
             badges = []
             if total_xp >= 1000:
                 badges.append("Grandmaster")
             elif total_xp >= 500:
                 badges.append("Scholar")
-            elif total_xp >= 200:
-                badges.append("Apprentice")
-            
-            if quizzes_taken >= 5:
+            elif total_xp >= 150:
+                badges.append("Explorer")
+
+            if quizzes_taken >= 3:
                 badges.append("Quiz Whiz")
-            if docs_count >= 2:
+            if docs_count >= 1:
                 badges.append("PDF Pioneer")
+            if total_sessions >= 3:
+                badges.append("Curious Minds")
+            if completed_plan_days >= 1:
+                badges.append("Planner Pro")
 
             rankings.append({
                 "user_id": user.id,
@@ -849,7 +866,7 @@ def get_leaderboard_rankings(current_user_id: str) -> dict:
                 "is_current_user": (user.id == current_user_id)
             })
 
-        # Sort by XP descending
+        # Sort by XP descending, then accuracy
         rankings.sort(key=lambda x: (x["total_xp"], x["avg_accuracy"]), reverse=True)
 
         # Assign rank numbers
@@ -864,6 +881,7 @@ def get_leaderboard_rankings(current_user_id: str) -> dict:
             "top_3": top_3,
             "current_user_rank": user_rank_info
         }
+
 
 
 # ─── Cloud Knowledge Graph helpers ─────────────────────────────────────────────
