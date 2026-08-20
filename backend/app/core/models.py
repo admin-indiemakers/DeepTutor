@@ -17,8 +17,17 @@ class User(Base):
     is_premium = Column(Boolean, default=False)
     plan = Column(String, default='free')  # 'free' or 'premium'
     created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
+    
+    # Dynamic Dashboard Stats
+    current_streak = Column(Integer, default=0)
+    longest_streak = Column(Integer, default=0)
+    total_learning_hours = Column(Float, default=0.0)
+    last_active_date = Column(String, nullable=True)
 
     sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
+    activities = relationship("UserActivity", back_populates="user", cascade="all, delete-orphan")
+    progress = relationship("UserProgress", back_populates="user", cascade="all, delete-orphan")
+    learning_goals = relationship("LearningGoal", back_populates="user", cascade="all, delete-orphan")
 
 
 class ChatSession(Base):
@@ -238,4 +247,46 @@ class KnowledgeGraph(Base):
     @triplets.setter
     def triplets(self, value):
         self._triplets = json.dumps(value or [])
+
+
+class UserActivity(Base):
+    __tablename__ = 'user_activities'
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey('users.id'), nullable=False)
+    activity_type = Column(String, nullable=False) # e.g. 'lesson_started', 'course_completed'
+    title = Column(String, nullable=False) # Description of what happened
+    subject_id = Column(String, nullable=True) # Related Subject ID
+    topic_id = Column(String, nullable=True) # Related Topic ID
+    timestamp = Column(String, default=lambda: datetime.utcnow().isoformat())
+    
+    user = relationship("User", back_populates="activities")
+
+
+class UserProgress(Base):
+    __tablename__ = 'user_progress'
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey('users.id'), nullable=False)
+    subject_id = Column(String, nullable=False)
+    topic_id = Column(String, nullable=False)
+    status = Column(String, default='NOT_STARTED') # NOT_STARTED, IN_PROGRESS, COMPLETED
+    progress_percentage = Column(Integer, default=0)
+    last_studied_at = Column(String, nullable=True)
+    
+    user = relationship("User", back_populates="progress")
+
+
+class LearningGoal(Base):
+    __tablename__ = 'learning_goals'
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey('users.id'), nullable=False)
+    title = Column(String, nullable=False)
+    target = Column(String, nullable=False)
+    deadline = Column(String, nullable=True)
+    progress_percentage = Column(Integer, default=0)
+    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
+    
+    user = relationship("User", back_populates="learning_goals")
 

@@ -29,15 +29,15 @@ interface Props {
 
 /* ─── Rich Vibrant Color Palette for Node Types ─────────────────── */
 const NODE_TYPE_COLORS: Record<string, { bg: string; border: string; glow: string }> = {
-  concept:    { bg: '#F28A45', border: '#FFF0E4', glow: 'rgba(242, 138, 69, 0.4)' },  // Apricot Orange
-  person:     { bg: '#D99A32', border: '#FFF3D8', glow: 'rgba(217, 154, 50, 0.4)' },  // Warm Amber
-  place:      { bg: '#4F8A68', border: '#E3F0E5', glow: 'rgba(79, 138, 104, 0.4)' },  // Sage Green
-  event:      { bg: '#C85C52', border: '#FBE7E4', glow: 'rgba(200, 92, 82, 0.4)' },   // Soft Red
+  concept:    { bg: '#1CB0F6', border: '#DDF4FF', glow: 'rgba(242, 138, 69, 0.4)' },  // Apricot Orange
+  person:     { bg: '#FFC800', border: '#FFF0B3', glow: 'rgba(217, 154, 50, 0.4)' },  // Warm Amber
+  place:      { bg: '#58CC02', border: '#D7FFB8', glow: 'rgba(79, 138, 104, 0.4)' },  // Sage Green
+  event:      { bg: '#FF4B4B', border: '#FFD1D1', glow: 'rgba(200, 92, 82, 0.4)' },   // Soft Red
   formula:    { bg: '#06b6d4', border: '#22d3ee', glow: 'rgba(6, 182, 212, 0.4)' },   // Cyan
   law:        { bg: '#A99BCB', border: '#F0ECF7', glow: 'rgba(169, 155, 203, 0.4)' },  // Soft Lavender
   theorem:    { bg: '#ec4899', border: '#f472b6', glow: 'rgba(236, 72, 153, 0.4)' },  // Pink
   document:   { bg: '#3b82f6', border: '#60a5fa', glow: 'rgba(59, 130, 246, 0.4)' },  // Blue
-  example_of: { bg: '#6F6B63', border: '#E7E1D8', glow: 'rgba(111, 107, 99, 0.4)' }, // Soft Ink
+  example_of: { bg: '#777777', border: '#E2E8F0', glow: 'rgba(111, 107, 99, 0.4)' }, // Soft Ink
 }
 
 function getNodeColor(type?: string) {
@@ -83,7 +83,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string | null>(null)
-  const [darkMode, setDarkMode] = useState(false) // Default to warm light theme matching DeepTutor design system
+  const [darkMode, setDarkMode] = useState(false) // Default to warm light theme matching Indie-Tutor design system
 
   const dragRef = useRef<{
     node: SimNode | null
@@ -274,7 +274,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     // Canvas Background Fill
-    ctx.fillStyle = darkMode ? '#0B0F19' : '#F8FAFC'
+    ctx.fillStyle = darkMode ? '#0B0F19' : '#F7F7F7'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     ctx.save()
@@ -409,7 +409,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
 
         ctx.fillStyle = isHighlighted
           ? (darkMode ? '#c7d2fe' : '#4338ca')
-          : (darkMode ? '#94a3b8' : '#64748b')
+          : (darkMode ? '#AFAFAF' : '#777777')
         ctx.fillText(label, mx, my)
         ctx.restore()
       }
@@ -440,7 +440,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
       // Main Node Circle
       ctx.beginPath()
       ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-      ctx.fillStyle = isDimmed ? (darkMode ? '#1e293b' : '#f1f5f9') : colors.bg
+      ctx.fillStyle = isDimmed ? (darkMode ? '#1e293b' : '#E5E5E5') : colors.bg
       ctx.fill()
 
       ctx.lineWidth = isSelected ? 3.5 : 2
@@ -454,7 +454,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
       // Center Core Dot
       ctx.beginPath()
       ctx.arc(node.x, node.y, r * 0.35, 0, Math.PI * 2)
-      ctx.fillStyle = isDimmed ? (darkMode ? '#475569' : '#cbd5e1') : '#ffffff'
+      ctx.fillStyle = isDimmed ? (darkMode ? '#777777' : '#cbd5e1') : '#ffffff'
       ctx.fill()
 
       // Node Label (Clean Crisp Badge)
@@ -469,7 +469,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
         const px = 7
         const py = 3
         ctx.fillStyle = isSelected
-          ? (darkMode ? '#ffffff' : '#0F172A')
+          ? (darkMode ? '#ffffff' : '#3C3C3C')
           : (darkMode ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)')
 
         ctx.beginPath()
@@ -486,11 +486,11 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
         ctx.stroke()
 
         ctx.fillStyle = isSelected
-          ? (darkMode ? '#0F172A' : '#ffffff')
-          : (darkMode ? '#f8fafc' : '#0f172a')
+          ? (darkMode ? '#3C3C3C' : '#ffffff')
+          : (darkMode ? '#F7F7F7' : '#3C3C3C')
         ctx.fillText(label, node.x, textY)
       } else {
-        ctx.fillStyle = darkMode ? '#475569' : '#94a3b8'
+        ctx.fillStyle = darkMode ? '#777777' : '#AFAFAF'
         ctx.fillText(label, node.x, textY)
       }
     })
@@ -681,7 +681,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
           initial={{ scale: 0.96, opacity: 0, y: 15 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.96, opacity: 0, y: 15 }}
-          className={`relative flex flex-col rounded-3xl shadow-2xl border transition-all duration-300 overflow-hidden ${
+          className={`relative flex flex-col rounded-[2rem] shadow-2xl border transition-all duration-300 overflow-hidden ${
             darkMode 
               ? 'bg-[#0B0F19] border-slate-800 text-slate-100' 
               : 'bg-white border-slate-200 text-slate-900'
@@ -693,10 +693,10 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
         >
           {/* ─── TOP HEADER CONTROL BAR ─── */}
           <div className={`flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-b ${
-            darkMode ? 'border-slate-800/80 bg-[#0F172A]/80' : 'border-slate-100 bg-white'
+            darkMode ? 'border-slate-800/80 bg-[#3C3C3C]/80' : 'border-slate-100 bg-white'
           }`}>
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg transition-transform hover:scale-105 ${
+              <div className={`w-11 h-11 rounded-[1.5rem] flex items-center justify-center shadow-lg transition-transform hover:scale-105 ${
                 darkMode ? 'bg-indigo-600 text-white shadow-indigo-500/20' : 'bg-slate-900 text-white'
               }`}>
                 <Network size={22} />
@@ -730,7 +730,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search entity in graph..."
-                  className={`w-full rounded-xl pl-9 pr-8 py-2 text-xs font-semibold focus:outline-none transition-all ${
+                  className={`w-full rounded-[1.25rem] pl-9 pr-8 py-2 text-xs font-semibold focus:outline-none transition-all ${
                     darkMode 
                       ? 'bg-slate-900/90 border border-slate-700/80 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500' 
                       : 'bg-slate-50 border border-slate-200 text-slate-800 focus:border-slate-900'
@@ -749,7 +749,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
               {/* Dark / Light Mode Canvas Toggle */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className={`p-2.5 rounded-xl border transition-all ${
+                className={`p-2.5 rounded-[1.25rem] border transition-all ${
                   darkMode 
                     ? 'bg-slate-800/80 border-slate-700 text-amber-400 hover:bg-slate-800' 
                     : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
@@ -762,7 +762,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
               {/* Fullscreen Toggle */}
               <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className={`p-2.5 rounded-xl border transition-all ${
+                className={`p-2.5 rounded-[1.25rem] border transition-all ${
                   darkMode 
                     ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800' 
                     : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
@@ -775,7 +775,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
               {/* Close Button */}
               <button
                 onClick={onClose}
-                className={`p-2.5 rounded-xl border transition-all ${
+                className={`p-2.5 rounded-[1.25rem] border transition-all ${
                   darkMode 
                     ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white hover:bg-red-500/20 hover:border-red-500/30' 
                     : 'bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-200'
@@ -813,7 +813,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
             )}
 
             {/* Floating Navigation Instruction Pill */}
-            <div className={`absolute top-4 left-4 backdrop-blur-xl px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-bold ${
+            <div className={`absolute top-4 left-4 backdrop-blur-xl px-4 py-2.5 rounded-[1.5rem] shadow-xl border flex items-center gap-2.5 text-xs font-bold ${
               darkMode 
                 ? 'bg-slate-900/90 border-slate-700/80 text-slate-300' 
                 : 'bg-white/90 border-slate-200/80 text-slate-700'
@@ -836,7 +836,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                   initial={{ opacity: 0, x: 30 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 30 }}
-                  className={`absolute top-4 right-4 bottom-4 w-88 md:w-96 backdrop-blur-xl rounded-3xl shadow-2xl p-6 flex flex-col justify-between z-20 overflow-y-auto border ${
+                  className={`absolute top-4 right-4 bottom-4 w-88 md:w-96 backdrop-blur-xl rounded-[2rem] shadow-2xl p-6 flex flex-col justify-between z-20 overflow-y-auto border ${
                     darkMode 
                       ? 'bg-slate-900/95 border-slate-700 text-slate-100' 
                       : 'bg-white/95 border-slate-200 text-slate-900'
@@ -846,7 +846,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-4 h-4 rounded-full flex-shrink-0 shadow-md"
+                          className="w-4 h-4 rounded-full flex-shrink-0 elevation-4"
                           style={{ backgroundColor: getNodeColor(selectedNode.type).bg }}
                         />
                         <span className={`text-[11px] font-extrabold uppercase tracking-wider ${
@@ -857,7 +857,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                       </div>
                       <button
                         onClick={() => setSelectedNode(null)}
-                        className={`p-1.5 rounded-xl transition-colors ${
+                        className={`p-1.5 rounded-[1.25rem] transition-colors ${
                           darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
                         }`}
                       >
@@ -870,7 +870,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                         {selectedNode.name}
                       </h4>
                       {selectedNode.description ? (
-                        <p className={`text-xs mt-3 leading-relaxed font-medium p-4 rounded-2xl border ${
+                        <p className={`text-xs mt-3 leading-relaxed font-medium p-4 rounded-[1.5rem] border ${
                           darkMode 
                             ? 'bg-slate-800/60 border-slate-700/60 text-slate-300' 
                             : 'bg-slate-50 border-slate-200/80 text-slate-700'
@@ -907,7 +907,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                             <div
                               key={idx}
                               onClick={() => conn.targetNode && setSelectedNode(conn.targetNode)}
-                              className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${
+                              className={`p-3 rounded-[1.5rem] border transition-all cursor-pointer flex items-center justify-between group ${
                                 darkMode 
                                   ? 'bg-slate-800/50 border-slate-700/80 hover:bg-indigo-950/40 hover:border-indigo-500/50' 
                                   : 'bg-slate-50 border-slate-200/80 hover:bg-indigo-50 hover:border-indigo-200'
@@ -943,7 +943,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
 
                   <button
                     onClick={() => setSelectedNode(null)}
-                    className={`w-full py-3 rounded-2xl font-bold text-xs transition-all shadow-lg mt-5 ${
+                    className={`w-full py-3 rounded-[1.5rem] font-bold text-xs transition-all shadow-lg mt-5 ${
                       darkMode 
                         ? 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-600/25' 
                         : 'bg-slate-900 text-white hover:bg-slate-800'
@@ -958,7 +958,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
 
           {/* ─── FOOTER BAR: ZOOM CONTROLS & ENTITY TYPE FILTERS ─── */}
           <div className={`flex flex-wrap items-center justify-between gap-4 px-6 py-3.5 border-t text-xs ${
-            darkMode ? 'border-slate-800/80 bg-[#0F172A]/90 text-slate-300' : 'border-slate-100 bg-white text-slate-700'
+            darkMode ? 'border-slate-800/80 bg-[#3C3C3C]/90 text-slate-300' : 'border-slate-100 bg-white text-slate-700'
           }`}>
             {/* Zoom & View Controls */}
             <div className="flex items-center gap-2">
@@ -967,7 +967,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                   camRef.current.zoom = Math.max(0.35, camRef.current.zoom - 0.15)
                   setZoom(camRef.current.zoom)
                 }}
-                className={`p-2 rounded-xl border transition-all ${
+                className={`p-2 rounded-[1.25rem] border transition-all ${
                   darkMode ? 'bg-slate-800/80 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'
                 }`}
                 title="Zoom Out"
@@ -984,7 +984,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                   camRef.current.zoom = Math.min(3.0, camRef.current.zoom + 0.15)
                   setZoom(camRef.current.zoom)
                 }}
-                className={`p-2 rounded-xl border transition-all ${
+                className={`p-2 rounded-[1.25rem] border transition-all ${
                   darkMode ? 'bg-slate-800/80 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'
                 }`}
                 title="Zoom In"
@@ -994,7 +994,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
 
               <button
                 onClick={resetView}
-                className={`flex items-center gap-1.5 font-bold px-3.5 py-2 rounded-xl border transition-all ml-2 ${
+                className={`flex items-center gap-1.5 font-bold px-3.5 py-2 rounded-[1.25rem] border transition-all ml-2 ${
                   darkMode ? 'bg-slate-800/80 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'
                 }`}
               >
@@ -1012,9 +1012,9 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setSelectedTypeFilter(null)}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-[1.25rem] text-xs font-bold transition-all ${
                     selectedTypeFilter === null
-                      ? (darkMode ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-900 text-white')
+                      ? (darkMode ? 'bg-indigo-600 text-white elevation-4' : 'bg-slate-900 text-white')
                       : (darkMode ? 'bg-slate-800/60 border border-slate-700/60 text-slate-400 hover:text-slate-200' : 'bg-slate-100 border border-slate-200 text-slate-600')
                   }`}
                 >
@@ -1030,7 +1030,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose }: Props) 
                     <button
                       key={type}
                       onClick={() => setSelectedTypeFilter(isSelected ? null : type)}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-[1.25rem] text-xs font-bold transition-all border ${
                         isSelected
                           ? (darkMode ? 'bg-indigo-500/30 border-indigo-500 text-white' : 'bg-indigo-50 border-indigo-300 text-indigo-700')
                           : (darkMode ? 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:border-slate-600' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300')

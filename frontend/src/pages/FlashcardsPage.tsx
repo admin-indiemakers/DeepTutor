@@ -169,7 +169,7 @@ export default function FlashcardsPage() {
     return (
       <div className="p-6 max-w-2xl mx-auto space-y-4">
         <div className="skeleton h-8 w-48 mb-6" />
-        <div className="skeleton h-80 w-full rounded-2xl" />
+        <div className="skeleton h-80 w-full rounded-[1.5rem]" />
       </div>
     )
   }
@@ -182,7 +182,7 @@ export default function FlashcardsPage() {
           animate={{ opacity: 1, scale: 1 }}
           className="glass-card p-12 text-center"
         >
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-br from-indigo-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-4">
             <BookOpen size={28} className="text-indigo-500" />
           </div>
           <h2 className="text-xl font-bold text-slate-800 mb-2">No flashcards yet</h2>
@@ -219,12 +219,12 @@ export default function FlashcardsPage() {
   })
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6 bg-[#FAF8F3]">
+    <div className="p-6 max-w-2xl mx-auto space-y-6 bg-[#F7F7F7]">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-[#6F6B63] hover:text-[#F28A45] transition-colors text-sm font-bold cursor-pointer"
+          className="flex items-center gap-2 text-[#777777] hover:text-[#1CB0F6] transition-colors text-sm font-bold cursor-pointer"
         >
           <ArrowLeft size={16} /> Back to Topic
         </button>
@@ -233,7 +233,7 @@ export default function FlashcardsPage() {
           {/* View toggle */}
           <button
             onClick={() => setViewMode(viewMode === 'single' ? 'grid' : 'single')}
-            className="text-xs px-3 py-1.5 rounded-xl border border-[#E7E1D8] bg-white text-[#20201D] hover:bg-[#FFF9F2] font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+            className="text-xs px-3 py-1.5 rounded-[1.25rem] border border-[#E2E8F0] bg-white text-[#3C3C3C] hover:bg-[#FFFFFF] font-black flex items-center gap-1.5 transition-all cursor-pointer elevation-1"
           >
             {viewMode === 'single' ? <Grid size={14} /> : <Layers size={14} />}
             <span>{viewMode === 'single' ? 'Grid View' : 'Card View'}</span>
@@ -242,7 +242,7 @@ export default function FlashcardsPage() {
           <button
             onClick={() => generateMutation.mutate()}
             disabled={generating}
-            className="text-xs text-[#F28A45] hover:text-[#DF7635] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="text-xs text-[#1CB0F6] hover:text-[#1899D6] font-black flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <RefreshCw size={12} className={generating ? 'animate-spin' : ''} /> Regenerate Deck
           </button>
@@ -251,11 +251,11 @@ export default function FlashcardsPage() {
 
       {/* Progress Bar */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs font-black text-[#6F6B63]">
+        <div className="flex items-center justify-between text-xs font-black text-[#777777]">
           <span>
             {viewMode === 'single' ? `Card ${currentIndex + 1} of ${cards.length}` : `${cards.length} Total Cards`}
           </span>
-          <span className="text-[#4F8A68]">
+          <span className="text-[#58CC02]">
             {completionPercentage}% Mastered ({masteredCount}/{cards.length})
           </span>
         </div>
@@ -281,16 +281,16 @@ export default function FlashcardsPage() {
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               {/* Front Side */}
-              <div className="absolute inset-0 w-full h-full backface-hidden bg-white border border-[#E7E1D8] border-t-4 border-t-[#F28A45] rounded-3xl p-8 flex flex-col justify-between shadow-xs">
+              <div className="absolute inset-0 w-full h-full backface-hidden bg-white border border-[#E2E8F0] border-t-4 border-t-[#1CB0F6] rounded-[2rem] p-8 flex flex-col justify-between elevation-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-[#F28A45] font-black uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 text-xs text-[#1CB0F6] font-black uppercase tracking-wider">
                     <HelpCircle size={14} /> Concept / Question
                   </div>
 
                   <button
                     type="button"
                     onClick={(e) => speakText(currentCard?.front || '', e)}
-                    className="p-2 rounded-xl text-[#969188] hover:text-[#F28A45] hover:bg-[#FFF0E4] transition-colors cursor-pointer"
+                    className="p-2 rounded-[1.25rem] text-[#AFAFAF] hover:text-[#1CB0F6] hover:bg-[#DDF4FF] transition-colors cursor-pointer"
                     title="Listen to card audio"
                   >
                     <Volume2 size={18} />
@@ -298,7 +298,7 @@ export default function FlashcardsPage() {
                 </div>
 
                 <div className="flex-1 flex flex-col items-center justify-center text-center my-3">
-                  <h2 className="text-xl font-black text-[#20201D] leading-relaxed px-4">
+                  <h2 className="text-xl font-black text-[#3C3C3C] leading-relaxed px-4">
                     {currentCard?.front}
                   </h2>
 
@@ -306,42 +306,42 @@ export default function FlashcardsPage() {
                     <motion.p
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mt-4 text-xs text-[#D99A32] bg-[#FFF3D8] border border-[#D99A32]/30 rounded-xl px-4 py-2 font-bold"
+                      className="mt-4 text-xs text-[#FFC800] bg-[#FFF0B3] border border-[#FFC800]/30 rounded-[1.25rem] px-4 py-2 font-bold"
                     >
                       💡 Hint: {currentCard?.back.slice(0, 30)}...
                     </motion.p>
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-[#E7E1D8]/60">
+                <div className="flex items-center justify-between pt-3 border-t border-[#E2E8F0]/60">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
                       setShowHint(!showHint)
                     }}
-                    className="text-xs font-black text-[#D99A32] hover:text-[#B57C20] flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-black text-[#FFC800] hover:text-[#B57C20] flex items-center gap-1 cursor-pointer"
                   >
                     <Lightbulb size={14} /> {showHint ? 'Hide Hint' : 'Reveal Hint'}
                   </button>
-                  <p className="text-xs text-[#969188] font-semibold">Click Card to Flip 🔄</p>
+                  <p className="text-xs text-[#AFAFAF] font-semibold">Click Card to Flip 🔄</p>
                 </div>
               </div>
 
               {/* Back Side */}
               <div
-                className="absolute inset-0 w-full h-full backface-hidden bg-white border border-[#E7E1D8] border-t-4 border-t-[#4F8A68] rounded-3xl p-8 flex flex-col justify-between shadow-xs"
+                className="absolute inset-0 w-full h-full backface-hidden bg-white border border-[#E2E8F0] border-t-4 border-t-[#58CC02] rounded-[2rem] p-8 flex flex-col justify-between elevation-2"
                 style={{ transform: 'rotateY(180deg)' }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-[#4F8A68] font-black uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 text-xs text-[#58CC02] font-black uppercase tracking-wider">
                     <CheckCircle2 size={14} /> Answer / Explanation
                   </div>
 
                   <button
                     type="button"
                     onClick={(e) => speakText(currentCard?.back || '', e)}
-                    className="p-2 rounded-xl text-[#969188] hover:text-[#4F8A68] hover:bg-[#E3F0E5] transition-colors cursor-pointer"
+                    className="p-2 rounded-[1.25rem] text-[#AFAFAF] hover:text-[#58CC02] hover:bg-[#D7FFB8] transition-colors cursor-pointer"
                     title="Listen to answer audio"
                   >
                     <Volume2 size={18} />
@@ -349,13 +349,13 @@ export default function FlashcardsPage() {
                 </div>
 
                 <div className="flex-1 flex items-center justify-center text-center">
-                  <p className="text-base text-[#20201D] leading-relaxed px-4 font-bold">
+                  <p className="text-base text-[#3C3C3C] leading-relaxed px-4 font-bold">
                     {currentCard?.back}
                   </p>
                 </div>
 
-                <div className="flex items-center justify-end pt-3 border-t border-[#E7E1D8]/60">
-                  <p className="text-xs text-[#969188] font-semibold">Click Card to Flip Back 🔄</p>
+                <div className="flex items-center justify-end pt-3 border-t border-[#E2E8F0]/60">
+                  <p className="text-xs text-[#AFAFAF] font-semibold">Click Card to Flip Back 🔄</p>
                 </div>
               </div>
             </motion.div>
@@ -365,31 +365,31 @@ export default function FlashcardsPage() {
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={() => handleReview(false)}
-              className="btn-ghost flex items-center justify-center gap-2 py-3.5 border-[#C85C52]/40 text-[#C85C52] hover:bg-[#FBE7E4] font-black rounded-2xl cursor-pointer"
+              className="btn-ghost flex items-center justify-center gap-2 py-3.5 border-[#FF4B4B]/40 text-[#FF4B4B] hover:bg-[#FFD1D1] font-black rounded-[1.5rem] cursor-pointer"
             >
               <AlertCircle size={16} /> Needs Study (←)
             </button>
             <button
               onClick={() => handleReview(true)}
-              className="btn-primary flex items-center justify-center gap-2 py-3.5 font-black rounded-2xl cursor-pointer shadow-2xs"
-              style={{ background: '#4F8A68' }}
+              className="btn-primary flex items-center justify-center gap-2 py-3.5 font-black rounded-[1.5rem] cursor-pointer elevation-1"
+              style={{ background: '#58CC02' }}
             >
               <CheckCircle2 size={16} /> Mastered (→)
             </button>
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center justify-between text-sm px-2 text-[#6F6B63]">
+          <div className="flex items-center justify-between text-sm px-2 text-[#777777]">
             <button
               onClick={handlePrev}
-              className="hover:text-[#F28A45] font-black transition-colors flex items-center gap-1 cursor-pointer"
+              className="hover:text-[#1CB0F6] font-black transition-colors flex items-center gap-1 cursor-pointer"
             >
               <ChevronLeft size={16} /> Previous Card
             </button>
-            <span className="text-xs text-[#969188]">Shortcuts: Space / Arrow Keys</span>
+            <span className="text-xs text-[#AFAFAF]">Shortcuts: Space / Arrow Keys</span>
             <button
               onClick={handleNext}
-              className="hover:text-[#F28A45] font-black transition-colors flex items-center gap-1 cursor-pointer"
+              className="hover:text-[#1CB0F6] font-black transition-colors flex items-center gap-1 cursor-pointer"
             >
               Next Card <ChevronRight size={16} />
             </button>
@@ -403,10 +403,10 @@ export default function FlashcardsPage() {
               <button
                 key={filter}
                 onClick={() => setGridFilter(filter)}
-                className={`text-xs px-3 py-1.5 rounded-xl capitalize font-black transition-all cursor-pointer ${
+                className={`text-xs px-3 py-1.5 rounded-[1.25rem] capitalize font-black transition-all cursor-pointer ${
                   gridFilter === filter
-                    ? 'bg-[#F28A45] text-white shadow-2xs'
-                    : 'bg-[#F4EFE7] text-[#6F6B63] hover:text-[#20201D]'
+                    ? 'bg-[#1CB0F6] text-white elevation-1'
+                    : 'bg-[#E5E5E5] text-[#777777] hover:text-[#3C3C3C]'
                 }`}
               >
                 {filter}
@@ -423,29 +423,29 @@ export default function FlashcardsPage() {
                   setViewMode('single')
                   setIsFlipped(false)
                 }}
-                className={`p-4 rounded-2xl border transition-all text-left cursor-pointer flex flex-col justify-between space-y-3 ${
+                className={`p-4 rounded-[1.5rem] border transition-all text-left cursor-pointer flex flex-col justify-between space-y-3 ${
                   card.mastered
-                    ? 'bg-[#E3F0E5]/50 border-[#4F8A68]/40 hover:border-[#4F8A68]'
-                    : 'bg-white border-[#E7E1D8] hover:border-[#F28A45]'
+                    ? 'bg-[#D7FFB8]/50 border-[#58CC02]/40 hover:border-[#58CC02]'
+                    : 'bg-white border-[#E2E8F0] hover:border-[#1CB0F6]'
                 }`}
               >
                 <div>
-                  <span className="text-[10px] font-black text-[#F28A45] uppercase tracking-wider block mb-1">
+                  <span className="text-[10px] font-black text-[#1CB0F6] uppercase tracking-wider block mb-1">
                     Concept
                   </span>
-                  <p className="text-xs font-extrabold text-[#20201D] leading-snug">{card.front}</p>
+                  <p className="text-xs font-extrabold text-[#3C3C3C] leading-snug">{card.front}</p>
                 </div>
-                <div className="pt-2 border-t border-[#E7E1D8]/60 flex items-center justify-between">
-                  <span className="text-[11px] text-[#6F6B63] line-clamp-2 font-medium">{card.back}</span>
+                <div className="pt-2 border-t border-[#E2E8F0]/60 flex items-center justify-between">
+                  <span className="text-[11px] text-[#777777] line-clamp-2 font-medium">{card.back}</span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       handleReview(!card.mastered, card.id)
                     }}
-                    className={`p-1.5 rounded-xl border flex-shrink-0 cursor-pointer ml-2 ${
+                    className={`p-1.5 rounded-[1.25rem] border flex-shrink-0 cursor-pointer ml-2 ${
                       card.mastered
-                        ? 'bg-[#4F8A68] text-white border-[#4F8A68]'
-                        : 'bg-[#FAF8F3] text-[#969188] border-[#E7E1D8] hover:text-[#4F8A68]'
+                        ? 'bg-[#58CC02] text-white border-[#58CC02]'
+                        : 'bg-[#F7F7F7] text-[#AFAFAF] border-[#E2E8F0] hover:text-[#58CC02]'
                     }`}
                   >
                     <CheckCircle2 size={16} />
