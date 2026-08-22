@@ -17,7 +17,7 @@ import LearningStreak from '../components/dashboard/LearningStreak'
 import PageContainer from '../components/PageContainer'
 
 export default function DashboardPage() {
-  const { user } = useAuthStore()
+  const { user, isAuthenticated, logout } = useAuthStore()
   const navigate = useNavigate()
 
   const { uiLanguage } = useLanguageStore()
@@ -73,22 +73,49 @@ export default function DashboardPage() {
       {/* TOP HEADER: "Dashboard overview" + Top Right Nav */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-xl font-bold text-slate-800 tracking-tight">{t.dashboard.welcome}</h1>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <NotificationPopup />
 
-          <div
-            onClick={() => setIsProfileOpen(true)}
-            className="flex items-center gap-3 bg-white rounded-full py-1.5 px-2 pr-4 cursor-pointer shadow-xs border border-slate-200 hover:shadow-sm transition-all"
-          >
-            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-2xs">
-              {user?.username?.[0]?.toUpperCase() ?? 'U'}
+          {/* Login & Sign Up Auth Buttons */}
+          {!isAuthenticated ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/login')}
+                className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-all cursor-pointer shadow-xs"
+              >
+                {t.header.login || 'Login'}
+              </button>
+              <button
+                onClick={() => navigate('/register')}
+                className="btn-primary px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                {t.header.register || 'Sign Up'}
+              </button>
             </div>
-            <div className="flex flex-col text-left">
-              <span className="text-[13px] font-bold text-slate-800 leading-none">{user?.username || 'Learner'}</span>
-              <span className="text-[10px] text-slate-400 mt-0.5 leading-none">{user?.email || 'student@indietutor.ai'}</span>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div
+                onClick={() => setIsProfileOpen(true)}
+                className="flex items-center gap-3 bg-white rounded-full py-1.5 px-2 pr-4 cursor-pointer shadow-xs border border-slate-200 hover:shadow-sm transition-all"
+              >
+                <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-2xs">
+                  {user?.username?.[0]?.toUpperCase() ?? 'U'}
+                </div>
+                <div className="flex flex-col text-left">
+                  <span className="text-[13px] font-bold text-slate-800 leading-none">{user?.username || 'Learner'}</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 leading-none">{user?.email || 'student@indietutor.ai'}</span>
+                </div>
+                <ChevronDown size={14} className="text-slate-400 ml-1" />
+              </div>
+              <button
+                onClick={() => logout()}
+                className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-rose-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 transition-all cursor-pointer shadow-xs"
+                title={t.header.logout}
+              >
+                {t.header.logout}
+              </button>
             </div>
-            <ChevronDown size={14} className="text-slate-400 ml-1" />
-          </div>
+          )}
         </div>
       </div>
 

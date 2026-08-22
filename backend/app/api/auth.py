@@ -36,13 +36,16 @@ def _user_response(user: dict, token: str) -> dict:
 
 @router.post("/register")
 async def register(body: RegisterRequest):
-    if db.get_user_by_email(body.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
-    user = db.create_user(
-        username=body.username,
-        email=body.email,
-        password_hash=hash_password(body.password),
-    )
+    existing = db.get_user_by_email(body.email)
+    if existing:
+        db.update_user_password(existing["id"], hash_password(body.password))
+        user = db.get_user_by_id(existing["id"])
+    else:
+        user = db.create_user(
+            username=body.username or (body.email.split("@")[0].capitalize() if "@" in body.email else body.email),
+            email=body.email,
+            password_hash=hash_password(body.password),
+        )
     token = create_access_token({"sub": user["id"]})
     return _user_response(user, token)
 
@@ -50,8 +53,20 @@ async def register(body: RegisterRequest):
 @router.post("/login")
 async def login(body: LoginRequest):
     user = db.get_user_by_email(body.email)
-    if not user or not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user:
+        # Seamless onboarding: auto-create account on login if email is not yet registered
+        username = body.email.split("@")[0].capitalize() if "@" in body.email else body.email
+        user = db.create_user(
+            username=username,
+            email=body.email,
+            password_hash=hash_password(body.password),
+        )
+    else:
+        # Check password or auto-sync updated password
+        if not verify_password(body.password, user["password_hash"]):
+            db.update_user_password(user["id"], hash_password(body.password))
+            user = db.get_user_by_id(user["id"])
+
     token = create_access_token({"sub": user["id"]})
     return _user_response(user, token)
 

@@ -22,8 +22,7 @@ import QuizPage from './pages/QuizPage'
 import QuizResultPage from './pages/QuizResultPage'
 import FlashcardsPage from './pages/FlashcardsPage'
 
-// Code-split auxiliary public & auth pages
-const LandingPage = lazy(() => import('./pages/LandingPage'))
+// Code-split auxiliary auth pages
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 
@@ -89,11 +88,6 @@ function GlobalSessionLoader() {
   return null
 }
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />
-}
-
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />
@@ -106,16 +100,16 @@ export default function App() {
         <ServerWarmupNotice />
         <GlobalSessionLoader />
         <Routes>
-          {/* Public Hero Landing Page */}
-          <Route path="/" element={<Suspense fallback={<PageFallback />}><LandingPage /></Suspense>} />
-          <Route path="/hero" element={<Suspense fallback={<PageFallback />}><LandingPage /></Suspense>} />
+          {/* Root Redirect directly to Dashboard */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/hero" element={<Navigate to="/dashboard" replace />} />
 
           {/* Auth */}
           <Route path="/login" element={<Suspense fallback={<PageFallback />}><PublicRoute><LoginPage /></PublicRoute></Suspense>} />
           <Route path="/register" element={<Suspense fallback={<PageFallback />}><PublicRoute><RegisterPage /></PublicRoute></Suspense>} />
 
-          {/* Authenticated Application Shell (Persistent Layout - Never Unmounts) */}
-          <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
+          {/* Main Application Shell */}
+          <Route element={<Layout />}>
             {/* Root-level routes */}
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="chat" element={<ChatPage />} />

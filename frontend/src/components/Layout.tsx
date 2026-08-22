@@ -24,7 +24,7 @@ import UpgradeModal from './UpgradeModal'
 import ConfirmModal from './ConfirmModal'
 
 export default function Layout() {
-  const { user, logout } = useAuthStore()
+  const { user, isAuthenticated, logout } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -157,22 +157,41 @@ export default function Layout() {
             })}
           </nav>
 
-          {/* Footer User Profile */}
-          <div className="pt-6 border-t border-slate-200 w-full flex flex-col items-center gap-4">
-            <div
-              onClick={() => setIsProfileOpen(true)}
-              className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-sm cursor-pointer shadow-md shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
-              title={t.header.profile}
-            >
-              {user?.username?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <button
-              onClick={() => logout()}
-              className="text-slate-400 hover:text-rose-600 transition-colors p-2 rounded-full hover:bg-rose-50 cursor-pointer"
-              title={t.header.logout}
-            >
-              <LogOut size={18} />
-            </button>
+          {/* Footer User Profile & Auth */}
+          <div className="pt-4 border-t border-slate-200 w-full flex flex-col items-center gap-3">
+            {isAuthenticated ? (
+              <>
+                <div
+                  onClick={() => setIsProfileOpen(true)}
+                  className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-sm cursor-pointer shadow-md shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
+                  title={t.header.profile}
+                >
+                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <button
+                  onClick={() => logout()}
+                  className="text-slate-400 hover:text-rose-600 transition-colors p-2 rounded-full hover:bg-rose-50 cursor-pointer"
+                  title={t.header.logout}
+                >
+                  <LogOut size={18} />
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-2 w-full px-1">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="w-full py-1.5 px-2 text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-center cursor-pointer shadow-2xs"
+                >
+                  {t.header.login || 'Login'}
+                </button>
+                <button
+                  onClick={() => navigate('/register')}
+                  className="w-full py-1.5 px-2 text-[11px] font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all text-center cursor-pointer shadow-2xs"
+                >
+                  {t.header.register || 'Sign Up'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -234,7 +253,7 @@ export default function Layout() {
           <div className="flex items-center gap-2 cursor-pointer font-black text-indigo-600 text-lg" onClick={() => navigate('/dashboard')}>
             IndieTutor
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={toggleLanguage}
               className="px-2 py-1 rounded-lg bg-slate-100 text-xs font-black text-slate-700"
@@ -242,12 +261,29 @@ export default function Layout() {
               {getLangBadge(uiLanguage)}
             </button>
             <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-ping'}`} title={isOnline ? t.header.online : t.header.offline} />
-            <button
-              onClick={() => setIsProfileOpen(true)}
-              className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs"
-            >
-              {user?.username?.[0]?.toUpperCase() ?? 'U'}
-            </button>
+            {isAuthenticated ? (
+              <button
+                onClick={() => setIsProfileOpen(true)}
+                className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs"
+              >
+                {user?.username?.[0]?.toUpperCase() ?? 'U'}
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="px-2 py-1 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  {t.header.login || 'Login'}
+                </button>
+                <button
+                  onClick={() => navigate('/register')}
+                  className="px-2 py-1 text-xs font-bold text-white bg-indigo-600 rounded-lg shadow-2xs hover:bg-indigo-700"
+                >
+                  {t.header.register || 'Sign Up'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

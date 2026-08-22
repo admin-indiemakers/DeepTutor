@@ -16,6 +16,8 @@ export const translations = {
     header: {
       profile: 'View & Edit Profile',
       logout: 'Logout',
+      login: 'Login',
+      register: 'Sign Up',
       online: 'API Connected',
       offline: 'API Offline',
       retry: 'Retry',
@@ -176,6 +178,8 @@ export const translations = {
     header: {
       profile: 'Visa & redigera profil',
       logout: 'Logga ut',
+      login: 'Logga in',
+      register: 'Skapa konto',
       online: 'API Ansluten',
       offline: 'API Frånkopplad',
       retry: 'Försök igen',
@@ -336,6 +340,8 @@ export const translations = {
     header: {
       profile: 'عرض وتعديل الملف الشخصي',
       logout: 'تسجيل الخروج',
+      login: 'تسجيل الدخول',
+      register: 'إنشاء حساب',
       online: 'الخادم متصل',
       offline: 'الخادم غير متصل',
       retry: 'إعادة المحاولة',

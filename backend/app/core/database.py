@@ -169,6 +169,16 @@ def update_user_tier(user_id: str, is_premium: bool) -> Optional[dict]:
     return get_user_by_id(user_id)
 
 
+def update_user_password(user_id: str, password_hash: str) -> Optional[dict]:
+    with DBContext() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            user.password_hash = password_hash
+            db.commit()
+    return get_user_by_id(user_id)
+
+
+
 # ─── Session helpers ───────────────────────────────────────────────────────────
 def create_session(user_id: str, topic_id: str, title: str) -> dict:
     sid = new_id()
