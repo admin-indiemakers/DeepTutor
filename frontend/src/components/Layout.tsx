@@ -12,7 +12,9 @@ import {
   WifiOff,
   GraduationCap,
   Award,
-  Globe
+  Globe,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
@@ -32,6 +34,22 @@ export default function Layout() {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [confirmDeleteSid, setConfirmDeleteSid] = useState<string | null>(null)
+
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('indie-tutor-sidebar-collapsed') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev
+      try { localStorage.setItem('indie-tutor-sidebar-collapsed', String(next)) } catch {}
+      return next
+    })
+  }
 
   const { uiLanguage, setUiLanguage } = useLanguageStore()
   const t = useTranslation(uiLanguage)
@@ -113,86 +131,159 @@ export default function Layout() {
         onCancel={() => setConfirmDeleteSid(null)}
       />
 
-      {/* ─── DESKTOP SIDEBAR ─── */}
-      <aside className="hidden lg:flex w-[104px] flex-shrink-0 flex-col p-4 z-20">
-        <div className="flex-1 rounded-3xl bg-white/80 backdrop-blur-xl border border-white/60 elevation-1 flex flex-col items-center py-8 justify-between relative">
-
-          {/* Top Logo */}
-          <div className="flex items-center justify-center cursor-pointer mb-6" onClick={() => navigate('/dashboard')}>
-            <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 hover:bg-indigo-700 transition-colors">
-              <GraduationCap size={24} />
+      {/* ─── DESKTOP SIDE DRAWER SIDEBAR ─── */}
+      <aside
+        className={`hidden lg:flex flex-shrink-0 flex-col p-3 z-30 transition-all duration-300 ease-in-out select-none ${
+          isCollapsed ? 'w-[84px]' : 'w-[250px]'
+        }`}
+      >
+        <div className="flex-1 rounded-3xl bg-white/90 backdrop-blur-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between p-3.5 relative overflow-hidden">
+          
+          {/* Top Logo & Drawer Toggle Button */}
+          <div className="flex items-center justify-between mb-5 px-1 pt-1">
+            <div
+              className="flex items-center gap-3 cursor-pointer overflow-hidden group"
+              onClick={() => navigate('/dashboard')}
+            >
+              <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 group-hover:scale-105 transition-transform shrink-0">
+                <GraduationCap size={22} />
+              </div>
+              {!isCollapsed && (
+                <div className="flex flex-col whitespace-nowrap transition-opacity duration-200">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-slate-800 text-base tracking-tight">IndieTutor</span>
+                    <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md border border-indigo-200">
+                      AI
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-semibold tracking-wide">Smart Exam Prep</span>
+                </div>
+              )}
             </div>
+
+            {/* Collapse / Expand Toggle Button */}
+            <button
+              onClick={toggleSidebar}
+              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all shrink-0 cursor-pointer"
+            >
+              {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
           </div>
 
-          {/* Website UI Language Switcher Toggle */}
-          <button
-            onClick={toggleLanguage}
-            title={`${t.header.websiteLanguage}: ${uiLanguage === 'en' ? 'English (🇬🇧)' : uiLanguage === 'sv' ? 'Svenska (🇸🇪)' : 'العربية (🇸🇦)'}`}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-black text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-all mb-4 cursor-pointer"
-          >
-            <Globe size={13} className="text-indigo-600" />
-            <span>{getLangBadge(uiLanguage)}</span>
-          </button>
-
           {/* Navigation Items */}
-          <nav className="flex-1 flex flex-col items-center gap-5 overflow-y-auto no-scrollbar w-full">
-            {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
+          <nav className="flex-1 flex flex-col gap-2 overflow-y-auto no-scrollbar py-2">
+            {NAV_ITEMS.map(({ to, icon: Icon, label, badge }) => {
               const isActive = location.pathname.startsWith(to)
               return (
                 <NavLink
                   key={to}
                   to={to}
-                  title={label}
-                  className={`flex items-center justify-center w-12 h-12 rounded-2xl transition-all group ${isActive
-                    ? 'bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-xs'
-                    : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/50'
-                    }`}
+                  title={isCollapsed ? label : undefined}
+                  className={`flex items-center gap-3.5 px-3 py-3 rounded-2xl font-bold text-xs transition-all group relative ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                      : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50/70'
+                  }`}
                 >
                   <Icon
-                    size={22}
-                    className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600 transition-colors'}
+                    size={20}
+                    className={`shrink-0 transition-transform group-hover:scale-110 ${
+                      isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'
+                    }`}
                   />
+                  {!isCollapsed && (
+                    <span className="truncate whitespace-nowrap tracking-tight">{label}</span>
+                  )}
+                  {!isCollapsed && badge && (
+                    <span
+                      className={`ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  )}
                 </NavLink>
               )
             })}
           </nav>
 
-          {/* Footer User Profile & Auth */}
-          <div className="pt-4 border-t border-slate-200 w-full flex flex-col items-center gap-3">
+          {/* Bottom Controls: Language Switcher & Profile / Auth */}
+          <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+            
+            {/* Website UI Language Switcher */}
+            <button
+              onClick={toggleLanguage}
+              title={`${t.header.websiteLanguage}: ${
+                uiLanguage === 'en' ? 'English (🇬🇧)' : uiLanguage === 'sv' ? 'Svenska (🇸🇪)' : 'العربية (🇸🇦)'
+              }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-all cursor-pointer ${
+                isCollapsed ? 'justify-center' : 'justify-between'
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                <Globe size={15} className="text-indigo-600 shrink-0" />
+                {!isCollapsed && <span className="truncate">{t.header.websiteLanguage}</span>}
+              </div>
+              <span className="font-black text-indigo-600 text-[11px] shrink-0">
+                {getLangBadge(uiLanguage)}
+              </span>
+            </button>
+
+            {/* Profile / Auth Section */}
             {isAuthenticated ? (
-              <>
+              <div className={`flex items-center gap-2 p-1.5 rounded-2xl bg-slate-50 border border-slate-200/80 ${
+                isCollapsed ? 'flex-col justify-center' : 'justify-between'
+              }`}>
                 <div
                   onClick={() => setIsProfileOpen(true)}
-                  className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-sm cursor-pointer shadow-md shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
+                  className="flex items-center gap-2.5 min-w-0 cursor-pointer group flex-1"
                   title={t.header.profile}
                 >
-                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                  <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                    {user?.username?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                  {!isCollapsed && (
+                    <div className="flex flex-col min-w-0 text-left truncate">
+                      <span className="text-xs font-bold text-slate-800 truncate leading-none">
+                        {user?.username || 'Learner'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 truncate mt-1 leading-none">
+                        {user?.email || 'student@indietutor.ai'}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => logout()}
-                  className="text-slate-400 hover:text-rose-600 transition-colors p-2 rounded-full hover:bg-rose-50 cursor-pointer"
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
                   title={t.header.logout}
                 >
-                  <LogOut size={18} />
+                  <LogOut size={16} />
                 </button>
-              </>
+              </div>
             ) : (
-              <div className="flex flex-col items-center gap-2 w-full px-1">
+              <div className={`flex gap-2 ${isCollapsed ? 'flex-col' : 'flex-row'}`}>
                 <button
                   onClick={() => navigate('/login')}
-                  className="w-full py-1.5 px-2 text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-center cursor-pointer shadow-2xs"
+                  className="flex-1 py-2 px-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-center cursor-pointer shadow-xs truncate"
                 >
-                  {t.header.login || 'Login'}
+                  {isCollapsed ? 'Login' : (t.header.login || 'Login')}
                 </button>
                 <button
                   onClick={() => navigate('/register')}
-                  className="w-full py-1.5 px-2 text-[11px] font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all text-center cursor-pointer shadow-2xs"
+                  className="flex-1 py-2 px-2 text-xs font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all text-center cursor-pointer shadow-xs truncate"
                 >
-                  {t.header.register || 'Sign Up'}
+                  {isCollapsed ? 'Sign Up' : (t.header.register || 'Sign Up')}
                 </button>
               </div>
             )}
+
           </div>
+
         </div>
       </aside>
 
