@@ -196,7 +196,7 @@ class GeminiClient:
         client = self._get_client()
 
         models_to_try = [resolved_model]
-        for fallback in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash", "gemini-flash-latest"]:
+        for fallback in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"]:
             if fallback not in models_to_try:
                 models_to_try.append(fallback)
 
@@ -227,11 +227,11 @@ class GeminiClient:
                                 continue
                         # Stream completed cleanly
                         return
-                    elif response.status_code in (429, 503, 500):
+                    elif response.status_code in (429, 503, 500, 404):
                         err_body = await response.aread()
                         last_error = f"Gemini error on {target_model} ({response.status_code}): {err_body.decode('utf-8', errors='replace')}"
                         if attempt < len(models_to_try) - 1:
-                            await asyncio.sleep(0.5)
+                            await asyncio.sleep(0.5 * (attempt + 1))
                             continue
                     else:
                         err_body = await response.aread()
@@ -242,7 +242,7 @@ class GeminiClient:
                     raise
                 last_error = str(e)
                 if attempt < len(models_to_try) - 1:
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.5 * (attempt + 1))
                     continue
 
         raise RuntimeError(last_error or "Gemini streaming failed across candidate models.")

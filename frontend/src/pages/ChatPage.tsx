@@ -60,67 +60,38 @@ function UploadStatusCard({
   onDismiss: (docId: string) => void
 }) {
   const [status, setStatus] = useState<any>({ status: 'indexing', progress: 5, stage: 'parsing' })
-  const [smoothProgress, setSmoothProgress] = useState(1)
-  const statusRef = useRef(status)
-  statusRef.current = status
-  const smoothRef = useRef(1)
+  const [displayProgress, setDisplayProgress] = useState(5)
   const hasTriggeredDoneRef = useRef(false)
   const hasTriggeredErrorRef = useRef(false)
 
-  // ─── Continuous 1-100% Smooth Low-Speed Animation Loop ───
+  // ─── Lightweight Progress Interpolator (Zero CPU overhead) ───
   useEffect(() => {
-    let animFrame: number
-    let lastTime = performance.now()
-
-    const tick = (now: number) => {
-      const dt = Math.min(0.1, (now - lastTime) / 1000) // delta time in seconds
-      lastTime = now
-
-      const current = smoothRef.current
-      const isDone = statusRef.current.status === 'done'
-      const isError = statusRef.current.status === 'error'
-
-      if (isError) {
-        return // Freeze on error
-      }
-
-      if (isDone) {
-        if (current < 100) {
-          // Accelerate smoothly to 100% when backend is complete
-          const speed = Math.max(30, (100 - current) * 4.0)
-          const next = Math.min(100, current + speed * dt)
-          smoothRef.current = next
-          setSmoothProgress(Math.floor(next))
-          animFrame = requestAnimationFrame(tick)
-        } else {
-          setSmoothProgress(100)
-        }
-        return
-      }
-
-      // Continuous low-speed steady progress:
-      // Smooth continuous crawl from 1% to 98% without halting or jumping
-      const backendTarget = typeof statusRef.current.progress === 'number' ? statusRef.current.progress : 15
-      
-      let baseRate = 3.2 // ~3.2% per second steady continuous low-speed climb
-      if (current > 70) baseRate = 1.8 // gradual smooth easing
-      if (current > 90) baseRate = 0.8 // calm waiting crawl near completion
-      if (current < backendTarget) {
-        baseRate = Math.max(baseRate, (backendTarget - current) * 1.8)
-      }
-
-      const next = Math.min(98, current + baseRate * dt)
-      smoothRef.current = next
-      setSmoothProgress(Math.max(1, Math.floor(next)))
-
-      animFrame = requestAnimationFrame(tick)
+    if (status.status === 'done') {
+      setDisplayProgress(100)
+      return
+    }
+    if (status.status === 'error' || status.status === 'rejected') {
+      return
     }
 
-    animFrame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(animFrame)
-  }, [])
+    const target = typeof status.progress === 'number' ? Math.max(5, status.progress) : 10
+    setDisplayProgress((prev) => {
+      if (prev < target) return target
+      // Gentle synthetic climb while waiting for backend
+      return Math.min(95, prev + 2)
+    })
 
-  // ─── Polling Backend Indexing Status (Fast 400ms cadence) ────────────────────────
+    const timer = setInterval(() => {
+      setDisplayProgress((prev) => {
+        if (prev >= 95) return 95
+        return prev + 1
+      })
+    }, 1200)
+
+    return () => clearInterval(timer)
+  }, [status])
+
+  // ─── Polling Backend Indexing Status (Clean 1000ms cadence) ────────────────────────
   useEffect(() => {
     let doneTimer: any = null
     const interval = setInterval(async () => {
@@ -148,7 +119,7 @@ function UploadStatusCard({
       } catch {
         // network polling retry
       }
-    }, 400)
+    }, 1000)
 
     return () => {
       clearInterval(interval)
@@ -156,7 +127,7 @@ function UploadStatusCard({
     }
   }, [upload.docId, onDone, onError, onDismiss])
 
-  const isDone = status.status === 'done' || smoothProgress >= 100
+  const isDone = status.status === 'done' || displayProgress >= 100
   const isError = status.status === 'error' || status.status === 'rejected'
 
   const stageInfo = useMemo(() => {
@@ -176,7 +147,7 @@ function UploadStatusCard({
         description: status.reason || status.error || 'Could not parse document. Please verify the file.',
       }
     }
-    if (smoothProgress < 25) {
+    if (displayProgress < 25) {
       return {
         label: 'Parsing Document Structure',
         step: 'Stage 1/4',
@@ -184,7 +155,7 @@ function UploadStatusCard({
         description: 'Extracting text, formulas & table layouts via Docling / PyMuPDF cascade...',
       }
     }
-    if (smoothProgress < 55) {
+    if (displayProgress < 55) {
       return {
         label: 'Semantic Chunking',
         step: 'Stage 2/4',
@@ -192,7 +163,7 @@ function UploadStatusCard({
         description: 'Building section tree & context-preserving semantic study chunks...',
       }
     }
-    if (smoothProgress < 80) {
+    if (displayProgress < 80) {
       return {
         label: 'Generating Vector Embeddings',
         step: 'Stage 3/4',
@@ -206,7 +177,7 @@ function UploadStatusCard({
       badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
       description: 'Extracting key concepts & entity relationship triplets for deep reasoning...',
     }
-  }, [isDone, isError, smoothProgress, status.error])
+  }, [isDone, isError, displayProgress, status.error, status.reason, status.status])
 
   return (
     <motion.div
@@ -287,7 +258,7 @@ function UploadStatusCard({
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="text-right">
             <span className={`text-xl sm:text-2xl font-black tracking-tight ${isDone ? 'text-emerald-600' : isError ? 'text-rose-600' : 'text-indigo-600'}`}>
-              {smoothProgress}%
+              {displayProgress}%
             </span>
           </div>
 
@@ -311,7 +282,7 @@ function UploadStatusCard({
               ? 'bg-rose-500'
               : 'bg-indigo-600'
             }`}
-          style={{ width: `${smoothProgress}%`, transition: 'width 60ms linear' }}
+          style={{ width: `${displayProgress}%`, transition: 'width 0.4s ease-out' }}
         >
           {/* Shimmer sweep */}
           {!isDone && !isError && (

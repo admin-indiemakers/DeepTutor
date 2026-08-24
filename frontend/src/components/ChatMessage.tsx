@@ -21,6 +21,9 @@ interface Props {
   }
 }
 
+const REMARK_PLUGINS = [remarkGfm, remarkMath]
+const REHYPE_PLUGINS = [rehypeKatex]
+
 const ChatMessageComponent = ({ role, content, isStreaming, sources, grounding }: Props) => {
   const [copied, setCopied] = useState(false)
   const isAssistant = role === 'assistant'
@@ -74,14 +77,22 @@ const ChatMessageComponent = ({ role, content, isStreaming, sources, grounding }
                 </div>
               )}
               <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
+                remarkPlugins={REMARK_PLUGINS}
+                rehypePlugins={REHYPE_PLUGINS}
                 components={{
                   code({ node, className, children, ...props }: any) {
                     const match = /language-(\w+)/.exec(className || '')
                     const language = match ? match[1] : ''
                     const codeStr = String(children).replace(/\n$/, '')
                     if (language === 'mermaid') {
+                      if (isStreaming) {
+                        return (
+                          <div className="my-3 p-3 rounded-xl border border-border bg-slate-50/80 text-xs font-mono text-slate-500 animate-pulse flex items-center gap-2">
+                            <span>📊</span>
+                            <span>Generating interactive diagram...</span>
+                          </div>
+                        )
+                      }
                       return <MermaidDiagram chart={codeStr} />
                     }
                     return (

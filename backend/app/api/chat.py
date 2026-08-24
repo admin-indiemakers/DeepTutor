@@ -284,7 +284,13 @@ async def stream_message(
                         pass
 
         except Exception as e:
-            error_msg = f"⚠️ Error: {str(e)}"
+            raw_err = str(e)
+            if "503" in raw_err or "high demand" in raw_err.lower() or "UNAVAILABLE" in raw_err:
+                error_msg = "⚠️ **AI Service Temporarily Busy:** Google's AI servers are experiencing a brief traffic spike. Please send your question again in a moment."
+            elif "429" in raw_err or "RESOURCE_EXHAUSTED" in raw_err:
+                error_msg = "⚠️ **Rate Limit:** The AI service received too many requests simultaneously. Please wait a few seconds before trying again."
+            else:
+                error_msg = f"⚠️ {raw_err}"
             yield f"data: {json.dumps({'type': 'token', 'data': error_msg})}\n\n"
             full_response = error_msg
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
