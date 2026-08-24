@@ -55,6 +55,28 @@ async def _run_indexing(doc_id: str, section_id: str, file_path: str, user_id: s
             chunk_count=stats.get("chunks_indexed", 0),
             key_topics=stats.get("extracted_topics", []),
         )
+    except ValueError as e:
+        # Detect gate rejections — they have the form "[rejection_code] human reason"
+        err_msg = str(e)
+        import re as _re
+        code_match = _re.match(r'\[([a-z_]+)\]\s*(.*)', err_msg, _re.S)
+        if code_match:
+            rejection_code = code_match.group(1)
+            rejection_reason = code_match.group(2).strip()
+            _indexing_status[doc_id] = {
+                "status": "rejected",
+                "progress": 0,
+                "rejection_code": rejection_code,
+                "reason": rejection_reason,
+                "stats": {},
+            }
+        else:
+            _indexing_status[doc_id] = {
+                "status": "error",
+                "progress": 0,
+                "error": err_msg,
+                "stats": {},
+            }
     except Exception as e:
         _indexing_status[doc_id] = {"status": "error", "progress": 0, "error": str(e), "stats": {}}
 

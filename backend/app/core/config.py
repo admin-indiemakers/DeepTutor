@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # Switch via .env: LLM_PROVIDER=gemini | ollama
     LLM_PROVIDER: str = "gemini"             # "gemini" | "ollama"
     GEMINI_API_KEY: str = ""
-    GEMINI_CHAT_MODEL: str = "gemini-3.5-flash-lite"
+    GEMINI_CHAT_MODEL: str = "gemini-2.0-flash"
     GEMINI_TIMEOUT: int = 60
 
     # ── Ollama local settings ────────────────────────────────────────────────
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "gemini"
     OPENAI_API_KEY: str = ""
     OPENAI_EMBED_MODEL: str = "text-embedding-3-small"   # or text-embedding-3-large
-    GEMINI_EMBED_MODEL: str = "models/gemini-embedding-2"
+    GEMINI_EMBED_MODEL: str = "models/text-embedding-004"
 
     # ── Stage 3: Vector Store Backend ───────────────────────────────────────
     # Switch via .env: VECTOR_STORE_BACKEND=pinecone | faiss | chroma
@@ -134,11 +134,23 @@ class Settings(BaseSettings):
     GRAPH_TOP_EDGES: int = 10
     GRAPH_TRIPLET_CONFIDENCE_THRESHOLD: float = 0.5  # min confidence for triplet storage
 
-    # ── File Uploads & Tier Limits ───────────────────────────────────────────
+    # ── File Uploads & Tier Limits ────────────────────────────────────────────────
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 5000
     FREE_MAX_UPLOAD_SIZE_MB: int = 5000
     PREMIUM_MAX_UPLOAD_SIZE_MB: int = 5000
+
+    # ── Content Relevance Gate (Stage 0 — pre-indexing filter) ─────────────────
+    RELEVANCE_GATE_ENABLED: bool = True
+    # Stage A: Content Quality Checks
+    RELEVANCE_GATE_MIN_CHARS: int = 200             # minimum extractable characters
+    RELEVANCE_GATE_MAX_SYMBOL_RATIO: float = 0.40   # max non-alpha char density
+    RELEVANCE_GATE_ADULT_BLOCKLIST: bool = True      # enable adult/unsafe content check
+    # Stage C: Embedding Similarity
+    RELEVANCE_GATE_EMBED_THRESHOLD: float = 0.35    # minimum cosine similarity to academic anchors
+    RELEVANCE_GATE_AMBIGUOUS_BAND: float = 0.10     # band below threshold that triggers Stage D LLM
+    # Stage D: LLM Classifier
+    RELEVANCE_GATE_LLM_FALLBACK: bool = True         # fail-open if LLM is unavailable
 
     # ── AWS S3 Document Cloud Storage ─────────────────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""

@@ -65,6 +65,7 @@ function UploadStatusCard({
   statusRef.current = status
   const smoothRef = useRef(1)
   const hasTriggeredDoneRef = useRef(false)
+  const hasTriggeredErrorRef = useRef(false)
 
   // ─── Continuous 1-100% Smooth Low-Speed Animation Loop ───
   useEffect(() => {
@@ -136,9 +137,13 @@ function UploadStatusCard({
           doneTimer = setTimeout(() => {
             onDismiss(upload.docId)
           }, 4500)
-        } else if (data.status === 'error') {
+        } else if (data.status === 'error' || data.status === 'rejected') {
           clearInterval(interval)
-          onError(upload.docId, data.error || 'Document processing encountered an error')
+          if (!hasTriggeredErrorRef.current) {
+            hasTriggeredErrorRef.current = true
+            const reason = data.reason || data.error || 'Document processing encountered an error'
+            onError(upload.docId, reason)
+          }
         }
       } catch {
         // network polling retry
@@ -152,7 +157,7 @@ function UploadStatusCard({
   }, [upload.docId, onDone, onError, onDismiss])
 
   const isDone = status.status === 'done' || smoothProgress >= 100
-  const isError = status.status === 'error'
+  const isError = status.status === 'error' || status.status === 'rejected'
 
   const stageInfo = useMemo(() => {
     if (isDone) {
@@ -165,10 +170,10 @@ function UploadStatusCard({
     }
     if (isError) {
       return {
-        label: 'Processing Failed',
+        label: status.status === 'rejected' ? 'Content Rejected' : 'Processing Failed',
         step: 'Error',
         badgeColor: 'bg-rose-50 text-rose-600 border-rose-200',
-        description: status.error || 'Could not parse document. Please verify the file.',
+        description: status.reason || status.error || 'Could not parse document. Please verify the file.',
       }
     }
     if (smoothProgress < 25) {
@@ -428,6 +433,7 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [uploadingFile, setUploadingFile] = useState(false)
   const [activeUploads, setActiveUploads] = useState<ActiveUpload[]>([])
+  const processedUploadsRef = useRef<Set<string>>(new Set())
   const [showGraphPanel, setShowGraphPanel] = useState(false)
   const [showQuizGame, setShowQuizGame] = useState(false)
   const [showFlashcards, setShowFlashcards] = useState(false)
@@ -791,12 +797,15 @@ export default function ChatPage() {
   }
 
   const handleUploadDone = useCallback((docId: string, stats: any) => {
+    if (processedUploadsRef.current.has(`done-${docId}`)) return
+    processedUploadsRef.current.add(`done-${docId}`)
+
     setActiveUploads((prev) => {
       const upload = prev.find((u) => u.docId === docId)
       const fileName = upload?.fileName || 'Document'
 
       const successMsg: ExtendedMessage = {
-        id: Date.now().toString(),
+        id: `upload-done-${docId}`,
         role: 'assistant',
         content: `📄 **${fileName}** is fully processed and indexed!\n\n${stats?.chunks_indexed
           ? `📊 **Knowledge Breakdown:**\n- **Chunks Indexed:** ${stats.chunks_indexed}\n- **Graph Entities:** ${stats.entities_extracted || 0}\n`
@@ -804,22 +813,35 @@ export default function ChatPage() {
           }${stats?.extracted_topics?.length ? `- **Key Topics:** ${stats.extracted_topics.slice(0, 5).join(', ')}\n` : ''}\n💡 *You can now ask questions, generate practice quizzes, or study flashcards for this material.*`,
         created_at: new Date().toISOString(),
       }
-      setExtMessages((existing) => [...existing, successMsg])
+      setTimeout(() => {
+        setExtMessages((existing) => {
+          if (existing.some((m) => m.id === `upload-done-${docId}`)) return existing
+          return [...existing, successMsg]
+        })
+      }, 0)
       return prev
     })
   }, [])
 
   const handleUploadError = useCallback((docId: string, error: string) => {
+    if (processedUploadsRef.current.has(`err-${docId}`)) return
+    processedUploadsRef.current.add(`err-${docId}`)
+
     setActiveUploads((prev) => {
       const upload = prev.find((u) => u.docId === docId)
       const fileName = upload?.fileName || 'Document'
       const errorMsg: ExtendedMessage = {
-        id: Date.now().toString(),
+        id: `upload-err-${docId}`,
         role: 'assistant',
         content: `❌ **Failed to process ${fileName}**: ${error}`,
         created_at: new Date().toISOString(),
       }
-      setExtMessages((existing) => [...existing, errorMsg])
+      setTimeout(() => {
+        setExtMessages((existing) => {
+          if (existing.some((m) => m.id === `upload-err-${docId}`)) return existing
+          return [...existing, errorMsg]
+        })
+      }, 0)
       return prev
     })
   }, [])

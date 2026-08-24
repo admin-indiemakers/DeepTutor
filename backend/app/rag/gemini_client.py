@@ -20,8 +20,8 @@ settings = get_settings()
 class GeminiClient:
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
-        self.chat_model = settings.GEMINI_CHAT_MODEL or "gemini-1.5-flash"
-        self.embed_model = settings.GEMINI_EMBED_MODEL or "models/gemini-embedding-2"
+        self.chat_model = settings.GEMINI_CHAT_MODEL or "gemini-2.0-flash"
+        self.embed_model = settings.GEMINI_EMBED_MODEL or "models/text-embedding-004"
         self.timeout = getattr(settings, "GEMINI_TIMEOUT", 15) or 15
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
         self._cache = None
@@ -142,7 +142,7 @@ class GeminiClient:
         client = self._get_client()
 
         models_to_try = [resolved_model]
-        for fallback in ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-latest"]:
+        for fallback in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash", "gemini-flash-latest"]:
             if fallback not in models_to_try:
                 models_to_try.append(fallback)
 
@@ -196,7 +196,7 @@ class GeminiClient:
         client = self._get_client()
 
         models_to_try = [resolved_model]
-        for fallback in ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-flash-latest"]:
+        for fallback in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash", "gemini-flash-latest"]:
             if fallback not in models_to_try:
                 models_to_try.append(fallback)
 
@@ -262,7 +262,7 @@ class GeminiClient:
         if not texts:
             return []
 
-        target_model = model or getattr(settings, "GEMINI_EMBED_MODEL", "models/gemini-embedding-2")
+        target_model = model or getattr(settings, "GEMINI_EMBED_MODEL", "models/text-embedding-004")
         if not target_model.startswith("models/"):
             target_model = f"models/{target_model}"
 

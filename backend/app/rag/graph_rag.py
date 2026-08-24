@@ -28,9 +28,35 @@ SSE event types (unchanged API contract):
   {"type": "confidence",    "data": {"score": 0.85, "label": "high"}}
   {"type": "token",         "data": "..."}
   {"type": "done"}
+
+──────────────────────────────────────────────────────────────
+CHANGELOG (fixes applied vs. previous version)
+──────────────────────────────────────────────────────────────
+1. Background triplet-extraction tasks are now tracked in a module-level
+   set with add_done_callback cleanup, so they can no longer be silently
+   garbage-collected mid-flight (a real asyncio footgun with bare
+   `asyncio.create_task(...)` calls that don't keep a reference).
+2. index_document() no longer reports fabricated zero/placeholder stats
+   for relationships/triplets — it now honestly reports what happened
+   synchronously vs. what's still running in the background.
+3. classify_learning_response_instruction() now checks structural intent
+   (comparison, flowchart, derivation, definition, classification, etc.)
+   BEFORE marks-weightage intent. Previously "difference between X and Y,
+   4 marks" was silently routed to the generic 4-mark template instead of
+   the comparison-table template. Marks weight is now layered on top as a
+   calibration hint instead of overriding the structural template.
+4. Citation-tag stripping now happens on the STREAMING path too, via a
+   small buffering filter (StreamingCitationFilter), instead of only in
+   simple_query(). Previously a model that ignored the "no inline
+   citations" instruction would leak `[file.pdf p.4]`-style tags to SSE
+   clients but not to non-streaming callers — silently inconsistent.
+5. Swallowed exceptions (`except Exception: pass`) now log via `logger`
+   with context (topic_id / question) instead of vanishing silently.
+6. Removed dead imports that weren't referenced in this module.
 """
 import asyncio
 import json
+import logging
 import re
 from pathlib import Path
 from typing import List, Dict, AsyncGenerator, Optional, Set
@@ -51,27 +77,40 @@ from app.core.config import get_settings
 from app.rag.pipeline.parser import document_parser
 from app.rag.pipeline.section_tree import build_section_tree
 from app.rag.pipeline.chunker import semantic_chunker
+from app.rag.pipeline.content_relevance_gate import content_relevance_gate, GateResult
 
 # ── Stage 2: Multi-provider embeddings + triplet extraction ───────────────
 from app.rag.pipeline.embedder import embedding_pipeline
-from app.rag.entity_extractor import (
-    extract_graph_triplets,
-    extract_entities_and_relationships,
-    extract_query_entities,
-)
+from app.rag.entity_extractor import extract_graph_triplets
 
 # ── Stage 3: Active storage backends (FAISS + JSON-KV by default) ─────────
 from app.rag.storage import active_vector_store, active_graph_store
 
-# Legacy aliases kept for backward compatibility
-from app.rag.graph_store import graph_store          # NetworkX fallback
-from app.rag.vector_store import vector_store        # ChromaDB fallback
+# NOTE: legacy fallback stores are intentionally NOT imported here anymore.
+# If another module needs `graph_store` / `vector_store` directly, import
+# them from app.rag.graph_store / app.rag.vector_store — re-exporting them
+# from this orchestrator was dead weight (never used in this file).
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 # ── Convenience: route to active backends ──────────────────────────────────
 _vs = active_vector_store
 _gs = active_graph_store
+
+# ── Background task bookkeeping ─────────────────────────────────────────────
+# Fire-and-forget asyncio.create_task() calls with no stored reference can be
+# garbage-collected by the event loop before they finish running. Keeping a
+# strong reference in this set (and discarding on completion) prevents that.
+_background_tasks: Set[asyncio.Task] = set()
+
+
+def _spawn_background_task(coro) -> asyncio.Task:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
 
 # ── System Prompt (Pedagogical Excellence, Conceptual Rigor & Grounding) ────────
 SYSTEM_PROMPT = """You are IndieTutor, an elite AI academic tutor that answers strictly and faithfully using the retrieved context provided for each query. You help students master their course material clearly, accurately, and in the cleanest, most readable format.
@@ -248,13 +287,21 @@ def _detect_simple_casual_query(text: str) -> Optional[str]:
     Fast-path zero-token response handler for simple greetings, check-ins,
     gratitude, and out-of-scope non-academic queries (like weather).
     Eliminates unnecessary LLM tokens and vector search latency.
+
+    NOTE: greeting/identity/gratitude checks require an EXACT full-message
+    match (after stripping punctuation) so they can never misfire on a real
+    academic question that happens to contain one of these words. The
+    "non-academic" weather check below is the only substring check, and is
+    intentionally narrow (full phrases like "what is the weather") to avoid
+    false-positiving on legitimate questions that merely mention "weather"
+    in an academic context (e.g. a geography/climate question).
     """
     t = text.strip().lower()
     t_clean = re.sub(r'[^a-zA-Z0-9\s]', '', t).strip()
 
     # 1. Greetings
     if t_clean in {
-        "hi","hai","hello", "hey", "hola", "hi there", "hello there", "hey there",
+        "hi", "hai", "hello", "hey", "hola", "hi there", "hello there", "hey there",
         "greetings", "good morning", "good afternoon", "good evening", "howdy", "sup", "yo"
     }:
         return "Hello! 👋 I'm **IndieTutor**, your AI academic tutor. What topic or concept would you like to explore today?"
@@ -279,8 +326,12 @@ def _detect_simple_casual_query(text: str) -> Optional[str]:
     if t_clean in {"bye", "goodbye", "see you", "see ya", "cya", "have a good day", "good night"}:
         return "Goodbye! Best of luck with your studies, and come back anytime you need help! 👋"
 
-    # 5. Non-academic queries (e.g. weather, general chit-chat)
-    if any(phrase in t_clean for phrase in ["what is the weather", "how is the weather", "weather today", "weather forecast", "whats the weather"]):
+    # 5. Non-academic queries (e.g. weather, general chit-chat) — full-phrase match only
+    weather_phrases = {
+        "what is the weather", "how is the weather", "weather today",
+        "weather forecast", "whats the weather",
+    }
+    if t_clean in weather_phrases:
         return (
             "I don't have access to live real-time weather data 🌤️, but I'm here to help you study, "
             "understand concepts, and solve any academic problems!"
@@ -334,6 +385,23 @@ def extract_requested_pages(text: str) -> List[int]:
     return sorted(list(pages))
 
 
+_MARKS_PATTERN = re.compile(r'\b(\d{1,2})\s*(?:marks?|mark|pts?)\b')
+
+
+def _detect_marks_weight(q_lower: str) -> Optional[int]:
+    """
+    Extract a board-exam marks value (e.g. "4 marks", "16 mark answer") if present.
+    Returns None if no marks value is mentioned. Used as a *calibration hint*
+    layered on top of whatever structural template the question actually needs —
+    it no longer overrides structural intent (see classify_learning_response_instruction).
+    """
+    match = _MARKS_PATTERN.search(q_lower)
+    if not match:
+        return None
+    value = int(match.group(1))
+    return value if 1 <= value <= 20 else None
+
+
 # ── Specialized Student Question Response Intent Classifier ────────────────────
 def classify_learning_response_instruction(
     question: str,
@@ -343,33 +411,40 @@ def classify_learning_response_instruction(
 ) -> str:
     """
     Analyzes student question intent and generates specialized, high-yield pedagogical
-    prompts tailored for different question archetypes:
-      1. Specific Page Summaries
-      2. Board Exam Marks Formats (1-2 Marks, 4 Marks, 8 Marks, 16 Marks)
-      3. Comparison / Differences (Side-by-Side Tables)
-      4. Flowcharts / Step-by-Step Mechanisms & Processes
-      5. Mathematical / Scientific Derivations & Proofs
-      6. Definitions, Laws & Principles
-      7. Classifications, Types & Categorized Lists
-      8. Bullet Points / Quick Revision
-      9. Important Exam Points & Key Formulas
-      10. Intuitive Analogies & Mental Models
-      11. Standard 10th Standard SCERT Textbook Template
-      12. Standard General Document Learn Template
+    prompts tailored for different question archetypes.
+
+    ORDERING FIX: structural-intent checks (comparison, flowchart, derivation,
+    definition, classification, bullet points, important points, analogy) are
+    now checked BEFORE marks-weightage checks. Previously a question like
+    "difference between X and Y, 4 marks" matched the generic 4-mark template
+    before ever reaching the comparison-table template, because the marks
+    check came first in the if/elif chain. Marks weight (if present) is now
+    appended to whichever structural template matches, as a length/depth
+    calibration hint, instead of silently replacing it.
     """
     q_raw = question or ""
     q_lower = q_raw.lower().strip()
+    marks_weight = _detect_marks_weight(q_lower)
+
+    def _with_marks_hint(instruction: str) -> str:
+        if marks_weight is not None:
+            return (
+                instruction
+                + f"\n\nCalibrate the depth and length of this answer for a {marks_weight}-mark "
+                  f"board exam response — enough detail to earn full marks, without padding."
+            )
+        return instruction
 
     # 0. Structured Academic Question Solver & Verifier (Tables with blanks, Flowcharts, Fill-in-the-blanks, Matching)
     try:
         from app.services.structured_solver import detect_structure_type, get_structured_solver_instruction
         struct_type = detect_structure_type(q_raw)
         if struct_type:
-            return get_structured_solver_instruction(struct_type, q_raw)
-    except Exception as e:
-        print(f"[STRUCTURED SOLVER INTENT WARN] {e}")
+            return _with_marks_hint(get_structured_solver_instruction(struct_type, q_raw))
+    except Exception:
+        logger.warning("structured_solver detection failed for question=%r", q_raw, exc_info=True)
 
-    # 0. 5-Minute Cheatcode / Cheat Notes Mode (e.g. "5 minute cheatcode", "5 min cheat notes", "cheatcode", "cheat code", "cheat notes", "5 minute notes", "quick cheat sheet", "cheat sheet")
+    # 0. 5-Minute Cheatcode / Cheat Notes Mode
     if any(w in q_lower for w in [
         "cheatcode", "cheat code", "cheatcodes", "cheat codes", "cheatnote", "cheatnotes",
         "cheat note", "cheat notes", "5 minute cheat", "5 min cheat", "5-minute cheat", "5-min cheat",
@@ -426,7 +501,7 @@ def classify_learning_response_instruction(
             "| 3 | ... | ... | ... |\n"
         )
 
-    # 0. Visual Figure / Diagram / Architecture Mode (e.g. "with a figure", "show figure", "with diagram", "diagram", "figure", "visualize", "draw")
+    # 0. Visual Figure / Diagram / Architecture Mode
     if any(w in q_lower for w in [
         "with a figure", "with figure", "show figure", "figure of", "draw figure", "a figure", "with a fig",
         "with a diagram", "with diagram", "show diagram", "diagram of", "draw diagram", "diagrammatically",
@@ -474,7 +549,7 @@ def classify_learning_response_instruction(
             f"Follow with clear conceptual explanations, structured breakdown tables/steps, and key takeaways from that page."
         )
 
-    # 2. Practice Questions Generator from Document / PDF (e.g. "give me 10 questions from this pdf", "generate 5 questions", "quiz me")
+    # 2. Practice Questions Generator from Document / PDF
     num_match = re.search(r'\b(\d+)\s*(?:practice\s+)?(?:exam\s+)?(?:sample\s+)?questions?\b', q_lower)
     has_question_request = bool(
         num_match
@@ -529,101 +604,7 @@ def classify_learning_response_instruction(
             "💡 **Hint:** [1 easy hint]"
         )
 
-    # 2. Board Exam Marks Allocation: 16 Marks (Comprehensive Essay / Master Question)
-    if (
-        re.search(r'\b(15|16|20)\s*(?:marks?|mark|pts?)\b', q_lower)
-        or any(w in q_lower for w in ["16 mark", "16-mark", "16mark", "15 mark", "essay answer", "master essay", "detailed essay", "16 marks question"])
-    ):
-        return (
-            "The student specifically requested a 16-MARK comprehensive board-exam master answer.\n"
-            "Provide an exhaustive, textbook-grounded response formatted strictly with these clear sections:\n"
-            "# 🎓 [16 Marks Master Essay Answer]: [Topic Title]\n\n"
-            "### 1️⃣ Executive Overview & Fundamental Definition (2 Marks)\n"
-            "[High-level conceptual introduction, historical context, and formal definition in bold]\n\n"
-            "### 2️⃣ Underlying Laws, Scientific Principles & Theoretical Framework (3 Marks)\n"
-            "[Exhaustive explanation of governing laws, assumptions, and physical/mathematical foundation]\n\n"
-            "### 3️⃣ Comprehensive Step-by-Step Working & Complete Derivations (5 Marks)\n"
-            "[In-depth walkthrough with numbered steps, algebraic/chemical workings, and LaTeX formulas]\n\n"
-            "### 4️⃣ Structured Comparison / Classification / Data Table (2 Marks)\n"
-            "| Parameter / Feature | Detail / Value / Property | Exam Significance |\n"
-            "| :--- | :--- | :--- |\n"
-            "| ... | ... | ... |\n\n"
-            "### 5️⃣ Practical Applications & Worked Problem (3 Marks)\n"
-            "- **Worked Numerical/Practical Example:** [Complete calculation with Given, Formula, Substitution, and Final Answer with units]\n"
-            "- **Industrial / Daily-Life Applications:** [3-4 concrete applications]\n\n"
-            "### 6️⃣ Critical Precautions, Limitations & Exam Conclusion (1 Mark)\n"
-            "[Essential boundary conditions, common pitfalls, and 2-sentence summary conclusion]"
-        )
-
-    # 3. Board Exam Marks Allocation: 8 Marks (Long Answer / Analytical Question)
-    if (
-        re.search(r'\b(7|8|10)\s*(?:marks?|mark|pts?)\b', q_lower)
-        or any(w in q_lower for w in ["8 mark", "8-mark", "8mark", "eight mark", "long answer", "8 marks answer", "8 marks question"])
-    ):
-        return (
-            "The student specifically requested an 8-MARK board-exam long answer.\n"
-            "Provide a structured, high-scoring long answer formatted strictly with these sections:\n"
-            "# 📋 [8 Marks Long-Answer Model Guide]: [Topic Title]\n\n"
-            "### 1️⃣ Introduction & Statement of Principle / Law (1.5 Marks)\n"
-            "[Clear formal definition, textbook statement in bold, and underlying scientific/mathematical principle]\n\n"
-            "### 2️⃣ Core Theory & Working Mechanism (3 Marks)\n"
-            "Break down into 4 to 6 distinct numbered points explaining the core mechanism:\n"
-            "1. **[Step 1]:** [Detailed explanation with bold terms]\n"
-            "2. **[Step 2]:** [Detailed explanation]\n"
-            "3. **[Step 3]:** [Detailed explanation]\n"
-            "4. **[Step 4]:** [Detailed explanation]\n\n"
-            "### 3️⃣ Mathematical Derivation / Equations & Working (2 Marks)\n"
-            "[Complete step-by-step calculations/derivation with all variables defined in LaTeX]\n\n"
-            "### 4️⃣ Real-World Applications & Practical Examples (1 Mark)\n"
-            "- **Application 1:** [Clear example]\n"
-            "- **Application 2:** [Clear example]\n\n"
-            "### 5️⃣ Examiner Checklist & Crucial Exam Cautions (0.5 Mark)\n"
-            "- ✅ [Crucial label/SI unit to remember]\n"
-            "- ⚠️ [Common blunder to avoid that loses marks]"
-        )
-
-    # 4. Board Exam Marks Allocation: 4 Marks (Medium-Answer Question)
-    if (
-        re.search(r'\b(3|4|5|6)\s*(?:marks?|mark|pts?)\b', q_lower)
-        or any(w in q_lower for w in ["4 mark", "4-mark", "4mark", "four mark", "3 mark", "5 mark", "4 marks answer", "4 marks question"])
-    ):
-        return (
-            "The student specifically requested a 4-MARK board-exam answer.\n"
-            "Provide a crisp, 4-part scoring answer tailored for full 4/4 marks:\n"
-            "# 📝 [4 Marks Exam Model Answer]: [Topic Title]\n\n"
-            "### 1️⃣ Core Statement & Definition (1 Mark)\n"
-            "[Crisp textbook definition or statement of law in bold]\n\n"
-            "### 2️⃣ Key Mechanism / Working Points (2 Marks)\n"
-            "Provide exactly 4 high-yield, bulleted points with bold keywords:\n"
-            "- **Point 1:** [Key concept / mechanism]\n"
-            "- **Point 2:** [Key concept / condition]\n"
-            "- **Point 3:** [Key property / relationship]\n"
-            "- **Point 4:** [Key consequence / rule]\n\n"
-            "### 3️⃣ Formula / Solved Example / Reaction (1 Mark)\n"
-            r"- **Formula / Equation:** $[Formula\ or\ Reaction]$" + "\n"
-            "- **Quick Solved Example:** [1 short numerical or application with answer]\n\n"
-            "---\n"
-            "💡 **Score Booster Tip:** [The exact keywords examiners look for to award full 4 marks]"
-        )
-
-    # 5. Board Exam Marks Allocation: 1-2 Marks (Short Answer Question)
-    if (
-        re.search(r'\b(1|2)\s*(?:marks?|mark|pts?)\b', q_lower)
-        or any(w in q_lower for w in ["1 mark", "1-mark", "1mark", "2 mark", "2-mark", "2mark", "two mark", "short answer 1 mark", "2 marks answer"])
-    ):
-        return (
-            "The student specifically requested a 1 or 2-MARK concise board-exam answer.\n"
-            "Provide a direct, high-yield answer for full marks:\n"
-            "# 🎯 [1-2 Marks Exam Model Answer]: [Topic Title]\n\n"
-            "### ✍️ Model Answer (Full Marks Guarantee)\n"
-            "- **Direct Definition / Law:** [State the exact crisp definition in bold]\n"
-            r"- **Formula & SI Unit:** $[Formula]$ | **SI Unit:** $[SI\ Unit]$" + "\n"
-            "- **1 Key Fact / Condition:** [1 textbook example or condition]\n\n"
-            "---\n"
-            "💡 **Examiner Keyword:** [The must-have technical term that earns the 2/2 score]"
-        )
-
-    # 6. Comparison & Differences (Side-by-Side Tables)
+    # 4. Comparison & Differences (Side-by-Side Tables) — now checked BEFORE marks-weightage
     if (
         any(w in q_lower for w in [
             "difference between", "differences between", "compare", "comparison",
@@ -633,7 +614,7 @@ def classify_learning_response_instruction(
         or re.search(r'\b\w+\s+vs\.?\s+\w+\b', q_lower)
         or re.search(r'\bversus\b', q_lower)
     ):
-        return (
+        return _with_marks_hint(
             "The student specifically asked for a COMPARISON / DIFFERENCE between concepts.\n"
             "Provide a high-yield, structured side-by-side comparison following this format:\n"
             "# ⚖️ Comparison: [Concept A] vs. [Concept B]\n\n"
@@ -658,13 +639,13 @@ def classify_learning_response_instruction(
             "💡 **Hint:** [1-line hint to solve it]"
         )
 
-    # 7. Flowchart, Step-by-Step Procedure, Reaction Mechanism, Lifecycle
+    # 5. Flowchart, Step-by-Step Procedure, Reaction Mechanism, Lifecycle
     if any(w in q_lower for w in [
         "flowchart", "flow chart", "flow-chart", "process flow", "steps involved",
         "step by step procedure", "stages of", "mechanism of", "lifecycle of",
         "life cycle of", "reaction pathway", "sequence of steps", "working cycle"
     ]):
-        return (
+        return _with_marks_hint(
             "The student specifically asked for a FLOWCHART / STEP-BY-STEP PROCESS or MECHANISM.\n"
             "Provide a visual flowchart sequence and detailed mechanism following this format:\n"
             "# 🔄 Flowchart & Process: [Process / Mechanism Name]\n\n"
@@ -709,13 +690,13 @@ def classify_learning_response_instruction(
             "- **Frequently Asked Exam Question:** [1 typical board exam question based on this flowchart]"
         )
 
-    # 8. Mathematical & Scientific Derivations / Proofs
+    # 6. Mathematical & Scientific Derivations / Proofs
     if (
         any(w in q_lower for w in ["derive ", "derivation", "prove that", "proof of", "mathematical proof", "show that ", "derive the formula"])
         or q_lower.startswith("derive")
         or q_lower.startswith("prove")
     ):
-        return (
+        return _with_marks_hint(
             "The student specifically asked for a MATHEMATICAL / SCIENTIFIC DERIVATION or PROOF.\n"
             "Provide a rigorous, easy-to-follow step-by-step derivation:\n"
             "# 📐 Step-by-Step Derivation: [Theorem / Formula Name]\n\n"
@@ -741,13 +722,13 @@ def classify_learning_response_instruction(
             "💡 **Key Transition Step:** [The exact algebraic move that students must remember in the exam room]"
         )
 
-    # 9. Definitions, Laws & Principles
+    # 7. Definitions, Laws & Principles
     if (
         any(w in q_lower for w in ["define ", "definition of", "what is meant by", "state the law", "state the principle", "state newton", "state ohm", "state boyle", "state charles", "state snell", "state law of"])
         or q_lower.startswith("define")
         or q_lower.startswith("state")
     ):
-        return (
+        return _with_marks_hint(
             "The student specifically asked for a DEFINITION or STATEMENT OF LAW.\n"
             "Provide a clean, authoritative, textbook-grade definition:\n"
             "# 📖 Definition: [Topic / Law Name]\n\n"
@@ -767,12 +748,12 @@ def classify_learning_response_instruction(
             "⚠️ **Exam Trap:** [The common omitted word or mistake that causes examiners to deduct marks]"
         )
 
-    # 10. Classifications, Types & Lists
+    # 8. Classifications, Types & Lists
     if any(w in q_lower for w in [
         "types of", "list the", "list down", "classify", "classification of",
         "categories of", "enumerate", "kinds of", "name the types", "different types"
     ]):
-        return (
+        return _with_marks_hint(
             "The student specifically asked for TYPES, CLASSIFICATION, or a STRUCTURED LIST.\n"
             "Provide a structured classification guide:\n"
             "# 📑 Types & Classification: [Topic Title]\n\n"
@@ -795,23 +776,23 @@ def classify_learning_response_instruction(
             "💡 **Hint:** [1-line hint]"
         )
 
-    # 11. Bullet Points / Quick Revision
+    # 9. Bullet Points / Quick Revision
     if any(w in q_lower for w in [
         "bullet point", "bullet points", "bullets", "5-7 clear", "quick revision",
         "summarize into", "summary notes", "in short", "bulleted list", "key bullets"
     ]):
-        return (
+        return _with_marks_hint(
             "The student specifically asked for BULLET POINTS.\n"
             "Provide ONLY a crisp, high-yield revision summary formatted as 5 to 7 structured bullet points with bold key terms and equations.\n"
             "Do NOT include unrelated filler or full articles."
         )
 
-    # 12. Important Exam-Critical Points & Formulas
+    # 10. Important Exam-Critical Points & Formulas
     if any(w in q_lower for w in [
         "important point", "important points", "exam-critical", "exam points",
         "core formulas", "must know for exam", "key points", "high yield points"
     ]):
-        return (
+        return _with_marks_hint(
             "The student specifically asked for IMPORTANT EXAM-CRITICAL POINTS.\n"
             "Provide a focused high-yield breakdown:\n"
             "# 🔑 Exam-Critical Must-Know Points: [Topic Title]\n\n"
@@ -827,7 +808,7 @@ def classify_learning_response_instruction(
             "- ⚠️ [Common blunder 2]"
         )
 
-    # 13. Intuitive Analogy / Mental Model
+    # 11. Intuitive Analogy / Mental Model
     if any(w in q_lower for w in [
         "analogy", "intuitive analogy", "simple analogy", "mental model",
         "real life analogy", "explain like i am", "simple story", "visual model"
@@ -838,7 +819,83 @@ def classify_learning_response_instruction(
             "followed by a clear 2-paragraph bridge connecting the analogy directly to the technical concept."
         )
 
-    # 14. Fallback Default (Textbook or Document)
+    # 12. Marks-weightage templates — now only reached when NO structural intent above matched.
+    if marks_weight is not None:
+        if marks_weight >= 15:
+            return (
+                "The student specifically requested a 16-MARK comprehensive board-exam master answer.\n"
+                "Provide an exhaustive, textbook-grounded response formatted strictly with these clear sections:\n"
+                "# 🎓 [16 Marks Master Essay Answer]: [Topic Title]\n\n"
+                "### 1️⃣ Executive Overview & Fundamental Definition (2 Marks)\n"
+                "[High-level conceptual introduction, historical context, and formal definition in bold]\n\n"
+                "### 2️⃣ Underlying Laws, Scientific Principles & Theoretical Framework (3 Marks)\n"
+                "[Exhaustive explanation of governing laws, assumptions, and physical/mathematical foundation]\n\n"
+                "### 3️⃣ Comprehensive Step-by-Step Working & Complete Derivations (5 Marks)\n"
+                "[In-depth walkthrough with numbered steps, algebraic/chemical workings, and LaTeX formulas]\n\n"
+                "### 4️⃣ Structured Comparison / Classification / Data Table (2 Marks)\n"
+                "| Parameter / Feature | Detail / Value / Property | Exam Significance |\n"
+                "| :--- | :--- | :--- |\n"
+                "| ... | ... | ... |\n\n"
+                "### 5️⃣ Practical Applications & Worked Problem (3 Marks)\n"
+                "- **Worked Numerical/Practical Example:** [Complete calculation with Given, Formula, Substitution, and Final Answer with units]\n"
+                "- **Industrial / Daily-Life Applications:** [3-4 concrete applications]\n\n"
+                "### 6️⃣ Critical Precautions, Limitations & Exam Conclusion (1 Mark)\n"
+                "[Essential boundary conditions, common pitfalls, and 2-sentence summary conclusion]"
+            )
+        if marks_weight >= 7:
+            return (
+                "The student specifically requested an 8-MARK board-exam long answer.\n"
+                "Provide a structured, high-scoring long answer formatted strictly with these sections:\n"
+                "# 📋 [8 Marks Long-Answer Model Guide]: [Topic Title]\n\n"
+                "### 1️⃣ Introduction & Statement of Principle / Law (1.5 Marks)\n"
+                "[Clear formal definition, textbook statement in bold, and underlying scientific/mathematical principle]\n\n"
+                "### 2️⃣ Core Theory & Working Mechanism (3 Marks)\n"
+                "Break down into 4 to 6 distinct numbered points explaining the core mechanism:\n"
+                "1. **[Step 1]:** [Detailed explanation with bold terms]\n"
+                "2. **[Step 2]:** [Detailed explanation]\n"
+                "3. **[Step 3]:** [Detailed explanation]\n"
+                "4. **[Step 4]:** [Detailed explanation]\n\n"
+                "### 3️⃣ Mathematical Derivation / Equations & Working (2 Marks)\n"
+                "[Complete step-by-step calculations/derivation with all variables defined in LaTeX]\n\n"
+                "### 4️⃣ Real-World Applications & Practical Examples (1 Mark)\n"
+                "- **Application 1:** [Clear example]\n"
+                "- **Application 2:** [Clear example]\n\n"
+                "### 5️⃣ Examiner Checklist & Crucial Exam Cautions (0.5 Mark)\n"
+                "- ✅ [Crucial label/SI unit to remember]\n"
+                "- ⚠️ [Common blunder to avoid that loses marks]"
+            )
+        if marks_weight >= 3:
+            return (
+                "The student specifically requested a 4-MARK board-exam answer.\n"
+                "Provide a crisp, 4-part scoring answer tailored for full 4/4 marks:\n"
+                "# 📝 [4 Marks Exam Model Answer]: [Topic Title]\n\n"
+                "### 1️⃣ Core Statement & Definition (1 Mark)\n"
+                "[Crisp textbook definition or statement of law in bold]\n\n"
+                "### 2️⃣ Key Mechanism / Working Points (2 Marks)\n"
+                "Provide exactly 4 high-yield, bulleted points with bold keywords:\n"
+                "- **Point 1:** [Key concept / mechanism]\n"
+                "- **Point 2:** [Key concept / condition]\n"
+                "- **Point 3:** [Key property / relationship]\n"
+                "- **Point 4:** [Key consequence / rule]\n\n"
+                "### 3️⃣ Formula / Solved Example / Reaction (1 Mark)\n"
+                r"- **Formula / Equation:** $[Formula\ or\ Reaction]$" + "\n"
+                "- **Quick Solved Example:** [1 short numerical or application with answer]\n\n"
+                "---\n"
+                "💡 **Score Booster Tip:** [The exact keywords examiners look for to award full 4 marks]"
+            )
+        return (
+            "The student specifically requested a 1 or 2-MARK concise board-exam answer.\n"
+            "Provide a direct, high-yield answer for full marks:\n"
+            "# 🎯 [1-2 Marks Exam Model Answer]: [Topic Title]\n\n"
+            "### ✍️ Model Answer (Full Marks Guarantee)\n"
+            "- **Direct Definition / Law:** [State the exact crisp definition in bold]\n"
+            r"- **Formula & SI Unit:** $[Formula]$ | **SI Unit:** $[SI\ Unit]$" + "\n"
+            "- **1 Key Fact / Condition:** [1 textbook example or condition]\n\n"
+            "---\n"
+            "💡 **Examiner Keyword:** [The must-have technical term that earns the 2/2 score]"
+        )
+
+    # 13. Fallback Default (Textbook or Document)
     if is_textbook:
         return (
             "Please explain this topic in an easy, friendly, and structured way for a 10th class student following the 10th Grade Output Template: "
@@ -870,7 +927,7 @@ def _deduplicate_chunks(chunks_lists: List[List[Dict]]) -> List[Dict]:
     return list(seen.values())
 
 
-from app.rag.topic_sanitizer import is_valid_academic_topic, clean_and_format_topic, deduplicate_and_rank_topics
+from app.rag.topic_sanitizer import deduplicate_and_rank_topics
 
 
 def _extract_key_topics_from_chunks(chunks: List[Dict]) -> List[str]:
@@ -892,14 +949,66 @@ def _extract_key_topics_from_chunks(chunks: List[Dict]) -> List[str]:
     return deduplicate_and_rank_topics(raw_topics, max_topics=20)
 
 
+# ── Citation cleanup (batch + streaming) ────────────────────────────────────
+_CITATION_PATTERN = re.compile(
+    r'\[(?:[a-zA-Z0-9_\-\.\s]+\.pdf|p\.\s*\d+|page\s*\d+|§[^\]]+)[^\]]*\]|\[\s*\d+\s*\]',
+    re.IGNORECASE,
+)
+
+
 def _clean_response_text(text: str) -> str:
     """Strip bracketed PDF/page citation tags so text is 100% clean and uncluttered."""
     if not text:
         return ""
-    cleaned = re.sub(r'\[(?:[a-zA-Z0-9_\-\.\s]+\.pdf|p\.\s*\d+|page\s*\d+|§[^\]]+)[^\]]*\]', '', text, flags=re.IGNORECASE)
-    # Strip standalone bracketed citations like [1], [2]
-    cleaned = re.sub(r'\[\s*\d+\s*\]', '', cleaned)
-    return cleaned.strip()
+    return _CITATION_PATTERN.sub('', text).strip()
+
+
+class StreamingCitationFilter:
+    """
+    Applies the same citation-stripping rules as `_clean_response_text`, but to a
+    token stream instead of a finished string.
+
+    Fixes an inconsistency where `simple_query()` cleaned citation tags but
+    `query_stream()` (the actual SSE path used by the frontend) did not — a
+    model that ignored the "no inline citations" system-prompt rule would leak
+    tags like `[file.pdf p.4]` to streaming clients only.
+
+    Strategy: buffer text starting from any unmatched '[' until it either
+    closes (so the full bracket can be matched/stripped) or a safety cap is
+    hit (so a stray '[' with no closing ']' can't stall the stream forever).
+    Everything before an unmatched '[' is safe to flush immediately.
+    """
+
+    def __init__(self, max_hold_chars: int = 200):
+        self._buffer = ""
+        self._max_hold_chars = max_hold_chars
+
+    def feed(self, token: str) -> str:
+        self._buffer += token
+        open_idx = self._buffer.rfind('[')
+        close_idx = self._buffer.rfind(']')
+
+        if open_idx == -1 or open_idx < close_idx:
+            # No unmatched '[' pending — everything is safe to clean and flush.
+            out = _CITATION_PATTERN.sub('', self._buffer)
+            self._buffer = ""
+            return out
+
+        if len(self._buffer) - open_idx > self._max_hold_chars:
+            # Bracket never closed within a reasonable window — flush as-is
+            # (cleaned) rather than buffering indefinitely.
+            out = _CITATION_PATTERN.sub('', self._buffer)
+            self._buffer = ""
+            return out
+
+        safe_part = self._buffer[:open_idx]
+        self._buffer = self._buffer[open_idx:]
+        return _CITATION_PATTERN.sub('', safe_part)
+
+    def flush(self) -> str:
+        out = _CITATION_PATTERN.sub('', self._buffer)
+        self._buffer = ""
+        return out
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -916,8 +1025,13 @@ class GraphRAGPipeline:
         progress_callback=None,
     ) -> Dict:
         """
-        Full 4-stage indexing pipeline:
+        Full 4-stage indexing pipeline with content relevance gate:
 
+        Stage 0 — Gate:    ContentRelevanceGate (4-stage cascade)
+                           A: Content Quality Checks (empty/spam/adult/non-study)
+                           B: Heuristic Filter (garbled OCR detection)
+                           C: Embedding Similarity (academic anchor corpus)
+                           D: LLM Classifier (ambiguous cases only)
         Stage 1 — Parse:   DocumentParser (PyMuPDF cascade) + section tree
         Stage 1 — Chunk:   SemanticChunker (500-1000 words + metadata)
         Stage 2 — Embed:   EmbeddingPipeline (Ollama/OpenAI/Gemini)
@@ -937,6 +1051,30 @@ class GraphRAGPipeline:
                 "Please verify that the PDF has selectable text and is not empty or scanned/image-only."
             )
 
+        # ── Stage 0: Content Relevance Gate ──────────────────────────────────
+        # Runs AFTER parsing (needs text) but BEFORE chunking/embedding (saves cost).
+        # Cheap stages (A+B) cost <2ms; Stage C ~100ms embedding; Stage D ~1s LLM.
+        if progress_callback:
+            await progress_callback("relevance_check", 8)
+
+        gate_result: GateResult = await content_relevance_gate.check(pages, topic_id)
+        if not gate_result.passed:
+            logger.warning(
+                "ContentRelevanceGate: Document REJECTED (topic=%s, code=%s, stage=%s): %s",
+                topic_id,
+                gate_result.rejection_code,
+                gate_result.stage_reached,
+                gate_result.reason[:120],
+            )
+            raise ValueError(
+                f"[{gate_result.rejection_code}] {gate_result.reason}"
+            )
+
+        logger.info(
+            "ContentRelevanceGate: Document PASSED (topic=%s, domain=%s, score=%.3f)",
+            topic_id, gate_result.subject_domain, gate_result.confidence,
+        )
+
         # ── Stage 1b: Build section tree ─────────────────────────────────────
         section_nodes = build_section_tree(pages)
 
@@ -949,7 +1087,7 @@ class GraphRAGPipeline:
             raise ValueError("Chunking produced no results. Document may be empty or unparseable.")
 
         total = len(chunks)
-        print(f"[PIPELINE] Stage 1 complete: {len(pages)} pages → {total} semantic chunks")
+        logger.info("Stage 1 complete: %d pages -> %d semantic chunks (topic=%s)", len(pages), total, topic_id)
 
         # ── Stage 2a: Embed chunks (multi-provider) ───────────────────────────
         if progress_callback:
@@ -967,24 +1105,31 @@ class GraphRAGPipeline:
         await query_result_cache.invalidate(topic_id)
 
         # ── Stage 2b + 3b: Instant Key Topics & Graph Nodes ───────────────────
-        all_entities: List[Dict] = []
-        all_relationships: List[Dict] = []
+        # NOTE: this synchronous phase only extracts *concept* entities from
+        # section headings/paths — it does not run the LLM-based relationship/
+        # triplet extraction. That happens in `_background_triplet_extraction`
+        # below, after this function has already returned. The stats dict
+        # reflects that split honestly instead of reporting fabricated zeros.
+        synchronous_entities: List[Dict] = []
 
         extracted_topics = _extract_key_topics_from_chunks(chunks)
         for topic in extracted_topics[:15]:
-            all_entities.append({
+            synchronous_entities.append({
                 "name": topic,
                 "type": "concept",
                 "description": f"Key concept in {topic_id}"
             })
 
-        _gs.add_entities(topic_id, all_entities)
+        _gs.add_entities(topic_id, synchronous_entities)
 
         # Signal 100% to UI immediately — document is ready for chat & search
         if progress_callback:
             await progress_callback("indexing_complete", 100)
 
-        print(f"[PIPELINE] Stage 3 complete: {total} chunks indexed in {settings.VECTOR_STORE_BACKEND} (topic: {topic_id})")
+        logger.info(
+            "Stage 3 complete: %d chunks indexed in %s (topic=%s)",
+            total, settings.VECTOR_STORE_BACKEND, topic_id,
+        )
 
         # ── Background Deep Triplet Extraction (Non-blocking async task) ──────
         async def _background_triplet_extraction():
@@ -1006,6 +1151,9 @@ class GraphRAGPipeline:
                             )
                             return ents, rels, [t.to_dict() for t in trips]
                         except Exception:
+                            logger.warning(
+                                "Triplet extraction failed for one chunk (topic=%s)", topic_id, exc_info=True
+                            )
                             return [], [], []
 
                 results = await asyncio.gather(*[_extract_one(c) for c in sample_chunks])
@@ -1021,18 +1169,22 @@ class GraphRAGPipeline:
                     _gs.add_relations(topic_id, bg_rels)
                 if bg_trips:
                     _gs.add_triplets(topic_id, bg_trips)
-            except Exception as e:
-                print(f"[PIPELINE BG] Triplet extraction background error: {e}")
 
-        # Fire and forget background triplet extraction
-        asyncio.create_task(_background_triplet_extraction())
+                logger.info(
+                    "Background triplet extraction complete (topic=%s): %d entities, %d relations, %d triplets",
+                    topic_id, len(bg_ents), len(bg_rels), len(bg_trips),
+                )
+            except Exception:
+                logger.warning("Background triplet extraction failed entirely (topic=%s)", topic_id, exc_info=True)
+
+        # Fire-and-forget, but tracked so it can't be garbage-collected mid-run.
+        _spawn_background_task(_background_triplet_extraction())
 
         stats = _gs.get_graph_stats(topic_id)
         return {
             "chunks_indexed": total,
-            "entities_extracted": len(all_entities),
-            "relationships_extracted": len(all_relationships),
-            "triplets_extracted": 0,
+            "entities_extracted_sync": len(synchronous_entities),
+            "graph_triplet_extraction": "running_in_background",
             "graph_nodes": stats["node_count"],
             "graph_edges": stats["edge_count"],
             "extracted_topics": extracted_topics,
@@ -1073,13 +1225,21 @@ class GraphRAGPipeline:
             hyde_doc = await hyde_engine.generate_hypothetical_document(question)
             embed_tasks = [embedding_pipeline.embed(q) for q in query_variants] + [embedding_pipeline.embed(hyde_doc)]
             all_results = await asyncio.gather(*embed_tasks, return_exceptions=True)
+            for r in all_results:
+                if isinstance(r, Exception):
+                    logger.warning("Embedding call failed during HyDE retrieval (topic=%s)", topic_id, exc_info=r)
             query_embeddings = [r for r in all_results[:-1] if isinstance(r, list)]
             hyde_embedding = all_results[-1] if isinstance(all_results[-1], list) else None
         else:
             hyde_doc = question
             hyde_embedding = None
-            query_embeddings = await asyncio.gather(*[embedding_pipeline.embed(q) for q in query_variants])
-            query_embeddings = [r for r in query_embeddings if isinstance(r, list)]
+            embed_results = await asyncio.gather(
+                *[embedding_pipeline.embed(q) for q in query_variants], return_exceptions=True
+            )
+            for r in embed_results:
+                if isinstance(r, Exception):
+                    logger.warning("Embedding call failed during retrieval (topic=%s)", topic_id, exc_info=r)
+            query_embeddings = [r for r in embed_results if isinstance(r, list)]
 
         # 5. Hybrid search for each embedding
         all_chunk_lists: List[List[Dict]] = []
@@ -1102,7 +1262,9 @@ class GraphRAGPipeline:
 
         search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
         for res in search_results:
-            if isinstance(res, list) and res:
+            if isinstance(res, Exception):
+                logger.warning("Hybrid search call failed (topic=%s, question=%r)", topic_id, question, exc_info=res)
+            elif isinstance(res, list) and res:
                 all_chunk_lists.append(res)
 
         # 6. Merge + deduplicate across all query variants
@@ -1115,7 +1277,7 @@ class GraphRAGPipeline:
                 if all_doc_chunks:
                     merged_chunks = _deduplicate_chunks([merged_chunks, all_doc_chunks])
             except Exception:
-                pass
+                logger.warning("Fallback get_all_chunks failed (topic=%s)", topic_id, exc_info=True)
 
         if not merged_chunks:
             return []
@@ -1178,14 +1340,14 @@ class GraphRAGPipeline:
         ]
         q_lower = question.lower()
         wants_image = any(w in q_lower for w in image_keywords)
-        
+
         image_search_task = None
         if wants_image:
             try:
                 from app.services.image_search import image_search_service
                 image_search_task = asyncio.create_task(image_search_service.get_verified_images(question))
-            except Exception as e:
-                print(f"[IMAGE SEARCH TRIGGER WARN] {e}")
+            except Exception:
+                logger.warning("Failed to start image search task (question=%r)", question, exc_info=True)
 
         # ── Step 1: Retrieval ──────────────────────────────────────────────────
         requested_pages = extract_requested_pages(question)
@@ -1209,6 +1371,9 @@ class GraphRAGPipeline:
                             hop_depth=1,
                         )
                     except Exception:
+                        logger.warning(
+                            "Graph context lookup failed for page query (topic=%s)", effective_topic_id, exc_info=True
+                        )
                         graph_context_data = {"entities": [], "relations": [], "triplets": [], "context_text": ""}
                 else:
                     missing_str = ", ".join([str(p) for p in requested_pages])
@@ -1240,6 +1405,10 @@ class GraphRAGPipeline:
                             hop_depth=settings.GRAPH_HOP_DEPTH,
                         )
                     except Exception:
+                        logger.warning(
+                            "Graph context lookup failed (topic=%s, question=%r)",
+                            effective_topic_id, question, exc_info=True,
+                        )
                         return {"entities": [], "relations": [], "triplets": [], "context_text": ""}
 
                 vector_chunks, graph_context_data = await asyncio.gather(
@@ -1292,7 +1461,7 @@ class GraphRAGPipeline:
                         for c in vector_chunks[:6]
                     ])
             except Exception:
-                pass
+                logger.warning("Meta-query fallback chunk fetch failed (topic=%s)", effective_topic_id, exc_info=True)
 
         if requested_pages and vector_chunks and not any("system_notice" in str(c.get("id", "")) for c in vector_chunks):
             confidence_score, confidence_label = 1.0, "high"
@@ -1408,13 +1577,21 @@ class GraphRAGPipeline:
             {"role": "user", "content": user_content},
         ]
 
-        # ── Step 6: Stream tokens & verify Self-RAG grounding ──────────────────
+        # ── Step 6: Stream tokens (citation-filtered) & verify Self-RAG grounding ──
         from app.rag.hallucination_guard import verify_response_grounding
 
         accumulated_text = ""
+        citation_filter = StreamingCitationFilter()
         async for token in ollama.stream(messages):
-            accumulated_text += token
-            yield f"data: {json.dumps({'type': 'token', 'data': token})}\n\n"
+            clean_token = citation_filter.feed(token)
+            if clean_token:
+                accumulated_text += clean_token
+                yield f"data: {json.dumps({'type': 'token', 'data': clean_token})}\n\n"
+
+        remainder = citation_filter.flush()
+        if remainder:
+            accumulated_text += remainder
+            yield f"data: {json.dumps({'type': 'token', 'data': remainder})}\n\n"
 
         # Step 7: Wait for image search to finish, and stream verified diagrams
         if image_search_task:
@@ -1432,7 +1609,7 @@ class GraphRAGPipeline:
                             f"> 💡 **Visual Summary:** {reason}  \n"
                             f"> 🔗 **Source:** [{domain}]({page}) *(AI Verified & Quality Checked)*\n\n"
                         )
-                    
+
                     for char in img_markdown:
                         yield f"data: {json.dumps({'type': 'token', 'data': char})}\n\n"
                         accumulated_text += char
@@ -1445,9 +1622,9 @@ class GraphRAGPipeline:
                         yield f"data: {json.dumps({'type': 'token', 'data': char})}\n\n"
                         accumulated_text += char
             except asyncio.TimeoutError:
-                print("[IMAGE SEARCH] Timed out waiting for image search results.")
-            except Exception as e:
-                print(f"[IMAGE SEARCH INJECTION ERROR] {e}")
+                logger.warning("Image search timed out after 15s (question=%r)", question)
+            except Exception:
+                logger.warning("Image search injection failed (question=%r)", question, exc_info=True)
 
         # Step 8: Self-RAG Hallucination Guard verification (non-blocking async thread)
         grounding = await asyncio.to_thread(verify_response_grounding, accumulated_text, vector_chunks)
@@ -1482,9 +1659,11 @@ class GraphRAGPipeline:
                 elif event["type"] == "confidence":
                     confidence = event["data"]
             except Exception:
-                pass
+                logger.warning("Failed to parse SSE event in simple_query: %r", event_str, exc_info=True)
 
         return {
+            # query_stream now yields already-citation-filtered tokens, but this
+            # stays as a cheap no-op safety net in case any tag slips through.
             "content": _clean_response_text(full_text),
             "sources": sources,
             "graph_context": graph_data,
@@ -1493,4 +1672,4 @@ class GraphRAGPipeline:
 
 
 # Singleton pipeline
-graph_rag = GraphRAGPipeline()
+graph_rag = GraphRAGPipeline()  
