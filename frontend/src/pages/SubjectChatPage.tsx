@@ -73,6 +73,9 @@ const SUBJECT_CONFIGS: Record<string, {
   },
 }
 
+// In-memory cache for instant 0ms chapter switching
+const subjectSessionCache = new Map<string, { sessionId: string; messages: ExtendedMessage[] }>()
+
 export default function SubjectChatPage() {
   const { subjectId, topicId: routeTopicId } = useParams<{ subjectId: string; topicId?: string }>()
   const navigate = useNavigate()
@@ -95,79 +98,80 @@ export default function SubjectChatPage() {
   const [messages, setMessages] = useState<ExtendedMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [loadingSession, setLoadingSession] = useState(true)
+  const [loadingSession, setLoadingSession] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const pendingSessionPromiseRef = useRef<Promise<string> | null>(null)
 
   const selectedTopic = topics.find((t) => t.id === selectedTopicId)
 
-  // Initialize or fetch stored session & messages for this subject from database
+  // Initialize or fetch stored session & messages for this subject with instant cache + single fast query
   useEffect(() => {
     let isMounted = true
+    const targetTopic = selectedTopicId || activeSubjectId
+    const sessionTitle = selectedTopic ? `${subject.name}: ${selectedTopic.title}` : `${subject.name} Chat`
 
-    async function initSession() {
+    // 1. Check instant in-memory cache
+    const cached = subjectSessionCache.get(targetTopic)
+    if (cached) {
+      setSessionId(cached.sessionId)
+      setMessages(cached.messages)
+      setLoadingSession(false)
+    } else {
       setLoadingSession(true)
-      const targetTopic = selectedTopicId || activeSubjectId
-      const sessionTitle = selectedTopic ? `${subject.name}: ${selectedTopic.title}` : `${subject.name} Chat`
-      
+    }
+
+    // 2. Fetch or create session in 1 single unified query
+    const sessionPromise = (async () => {
       try {
-        // 1. Fetch user's existing sessions from database
-        const res = await chatApi.sessions()
-        const allSessions = res.data || []
-        
-        // Find existing session for this exact subject/topic
-        const existingSession = allSessions.find(
-          (s: any) => s.topic_id === targetTopic
-        )
+        const res = await chatApi.getTopicSession(targetTopic, sessionTitle)
+        const data = res.data
+        const activeSid = data.id || data.session?.id || ''
+        const rawMsgs = data.messages || []
+        const loadedMsgs: ExtendedMessage[] = rawMsgs.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          created_at: m.created_at,
+          sources: m.metadata?.sources ?? m.sources ?? [],
+          graph_context: m.metadata?.graph_context ?? m.graph_context ?? null,
+        }))
 
-        let activeSid = ''
-        let messageCount = 0
+        // Update in-memory cache
+        subjectSessionCache.set(targetTopic, {
+          sessionId: activeSid,
+          messages: loadedMsgs,
+        })
 
-        if (existingSession) {
-          activeSid = existingSession.id
-          if (isMounted) {
-            setSessionId(activeSid)
-          }
-          // 2. Load stored chat history from database
-          const msgRes = await chatApi.messages(activeSid)
-          const loadedMsgs: ExtendedMessage[] = (msgRes.data || []).map((m: any) => ({
-            ...m,
-            sources: m.metadata?.sources ?? [],
-            graph_context: m.metadata?.graph_context ?? null,
-          }))
-          messageCount = loadedMsgs.length
-          if (isMounted) {
-            setMessages(loadedMsgs)
-          }
-        } else {
-          // 3. Create a new persistent session in database
-          const newSessRes = await chatApi.createSession(targetTopic, sessionTitle)
-          activeSid = newSessRes.data.id
-          if (isMounted) {
-            setSessionId(activeSid)
-            setMessages([])
-          }
+        if (isMounted) {
+          setSessionId(activeSid)
+          setMessages(loadedMsgs)
         }
 
         // Only send the inbuilt intro prompt on FIRST visit (when conversation history is empty)
         const state = location.state as any
-        if (state?.initialPrompt && isMounted && messageCount === 0) {
+        if (state?.initialPrompt && isMounted && loadedMsgs.length === 0) {
           sendMessage(state.initialPrompt, activeSid)
           navigate(location.pathname, { replace: true, state: {} })
         } else if (state?.initialPrompt && isMounted) {
-          // Conversation already exists — directly show chat history without repeating inbuilt prompt
           navigate(location.pathname, { replace: true, state: {} })
         }
+
+        return activeSid
       } catch (err) {
-        console.error('Failed to initialize subject chat session from database', err)
+        console.error('Failed to initialize subject chat session', err)
+        return ''
       } finally {
         if (isMounted) setLoadingSession(false)
       }
-    }
+    })()
 
-    initSession()
-    return () => { isMounted = false }
+    pendingSessionPromiseRef.current = sessionPromise
+
+    return () => {
+      isMounted = false
+    }
   }, [activeSubjectId, selectedTopicId])
 
   // Scroll to bottom when messages change
@@ -178,8 +182,14 @@ export default function SubjectChatPage() {
   // Send message and persist to database
   const sendMessage = useCallback(async (contentToSend?: string, overrideSessionId?: string) => {
     const text = (contentToSend || input).trim()
-    const activeSid = overrideSessionId || sessionId
-    if (!text || !activeSid || isStreaming) return
+    if (!text || isStreaming) return
+
+    // Ensure we have an active session ID (awaiting initialization promise if still pending)
+    let activeSid = overrideSessionId || sessionId
+    if (!activeSid && pendingSessionPromiseRef.current) {
+      activeSid = await pendingSessionPromiseRef.current
+    }
+    if (!activeSid) return
 
     if (!contentToSend) setInput('')
 
@@ -199,7 +209,15 @@ export default function SubjectChatPage() {
       sources: [],
     }
 
-    setMessages((prev) => [...prev, userMessage, placeholderAssistant])
+    setMessages((prev) => {
+      const updated = [...prev, userMessage, placeholderAssistant]
+      const targetTopic = selectedTopicId || activeSubjectId
+      const cached = subjectSessionCache.get(targetTopic)
+      if (cached) {
+        subjectSessionCache.set(targetTopic, { ...cached, messages: updated })
+      }
+      return updated
+    })
     setIsStreaming(true)
 
     if (selectedTopicId) {
@@ -216,14 +234,26 @@ export default function SubjectChatPage() {
       signal: abortControllerRef.current?.signal,
       onGraphContext: () => {},
       onSources: (sources) => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantMsgId ? { ...m, sources } : m))
-        )
+        setMessages((prev) => {
+          const updated = prev.map((m) => (m.id === assistantMsgId ? { ...m, sources } : m))
+          const targetTopic = selectedTopicId || activeSubjectId
+          const cached = subjectSessionCache.get(targetTopic)
+          if (cached) {
+            subjectSessionCache.set(targetTopic, { ...cached, messages: updated })
+          }
+          return updated
+        })
       },
       onToken: (tokenChunk) => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantMsgId ? { ...m, content: m.content + tokenChunk } : m))
-        )
+        setMessages((prev) => {
+          const updated = prev.map((m) => (m.id === assistantMsgId ? { ...m, content: m.content + tokenChunk } : m))
+          const targetTopic = selectedTopicId || activeSubjectId
+          const cached = subjectSessionCache.get(targetTopic)
+          if (cached) {
+            subjectSessionCache.set(targetTopic, { ...cached, messages: updated })
+          }
+          return updated
+        })
       },
       onDone: () => {
         setIsStreaming(false)
@@ -240,7 +270,7 @@ export default function SubjectChatPage() {
         )
       },
     })
-  }, [input, sessionId, isStreaming, selectedTopicId, activeSubjectId, recordActivity])
+  }, [input, sessionId, isStreaming, selectedTopicId, activeSubjectId, recordActivity, aiLanguage])
 
   // Reset/Clear conversation for this chapter in DB
   const handleResetChat = async () => {
@@ -253,8 +283,10 @@ export default function SubjectChatPage() {
       const targetTopic = selectedTopicId || activeSubjectId
       const sessionTitle = selectedTopic ? `${subject.name}: ${selectedTopic.title}` : `${subject.name} Chat`
       const newSess = await chatApi.createSession(targetTopic, sessionTitle)
-      setSessionId(newSess.data.id)
+      const newSid = newSess.data.id
+      setSessionId(newSid)
       setMessages([])
+      subjectSessionCache.set(targetTopic, { sessionId: newSid, messages: [] })
     } catch (err) {
       console.error('Failed to reset session:', err)
     }
@@ -394,14 +426,16 @@ export default function SubjectChatPage() {
         </div>
       </header>
 
+      {/* ─── Top Indeterminate Sync Bar (Non-blocking) ─── */}
+      {loadingSession && (
+        <div className="w-full h-0.5 bg-indigo-100 overflow-hidden relative z-10">
+          <div className="h-full bg-gradient-to-r from-[#4F46E5] via-[#818CF8] to-[#4F46E5] w-full animate-pulse" />
+        </div>
+      )}
+
       {/* ─── Main Chat Area ─── */}
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 max-w-4xl w-full mx-auto">
-        {loadingSession ? (
-          <div className="h-full flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="w-10 h-10 border-3 border-[#4F46E5] border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs font-bold text-[#AFAFAF] animate-pulse">Loading AI Textbook Tutor...</p>
-          </div>
-        ) : messages.length === 0 ? (
+        {messages.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -498,14 +532,14 @@ export default function SubjectChatPage() {
             onChange={(e) => setInput(e.target.value)}
             placeholder={`Ask a question or topic from ${selectedTopic ? selectedTopic.title : subject.name}...`}
             className="flex-1 bg-transparent text-sm sm:text-base text-[#3C3C3C] font-medium placeholder-[#9E9B95] focus:outline-none"
-            disabled={isStreaming || loadingSession}
+            disabled={isStreaming}
           />
 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             type="submit"
-            disabled={!input.trim() || isStreaming || loadingSession}
+            disabled={!input.trim() || isStreaming}
             className="p-3.5 bg-[#4F46E5] hover:bg-[#4338CA] disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-[1.5rem] transition-all cursor-pointer flex-shrink-0 elevation-2 flex items-center justify-center"
             title="Send Message"
           >

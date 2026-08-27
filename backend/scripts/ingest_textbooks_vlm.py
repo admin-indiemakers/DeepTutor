@@ -97,23 +97,44 @@ CURRICULUM_CONFIG = {
     },
 }
 
-VLM_TRANSCRIPTION_PROMPT = """You are an expert academic STEM textbook transcription engine. 
-Transcribe the provided textbook page faithfully into clean, well-structured Markdown:
-1. Format document structure cleanly:
+VLM_TRANSCRIPTION_PROMPT = """You are an expert academic STEM textbook transcription engine for Class 10 Kerala SSLC syllabus.
+Transcribe the provided textbook page faithfully into clean, well-structured Markdown with ZERO hallucination.
+
+1. DOCUMENT STRUCTURE:
    - Use # for chapter titles, ## for section headings, ### for subheadings.
    - Use bullet points and numbered lists where appropriate.
-2. Mathematical & Chemical Equations:
-   - Convert all mathematical formulas and chemical reactions into valid LaTeX syntax.
-   - Use $...$ for inline formulas and $$...$$ for block/standalone equations.
-3. Tables & Lists:
-   - Convert all tables into clean GitHub-flavored Markdown tables.
-4. Diagrams, Charts, Ray Diagrams & Schematics:
-   - For every diagram, circuit schematic, optical ray diagram, apparatus illustration, or graph, insert a descriptive block:
-     [Figure: <detailed description of the diagram including labels, components, light ray directions, axes, variables, and scientific concept illustrated>]
-5. Solved Examples & Activities:
-   - Keep solved numerical problems clearly formatted with Given, Formula, Step-by-step substitution, and Final answer.
-6. Fidelity:
+   - Preserve ALL original numbering: Table 1.1, Table 1.2, Activity 1.1, Example 3.2, etc.
+
+2. MATHEMATICAL & CHEMICAL EQUATIONS:
+   - Convert ALL mathematical formulas and chemical reactions into valid LaTeX syntax.
+   - Use $...$ for inline formulas (e.g. $\\text{CH}_3-\\text{COOH}$, $v = u + at$) and $$...$$ for block/standalone equations.
+   - Write chemical structural formulas on a single line (e.g. $\\text{CH}_3-\\text{CH}_2-\\text{COOH}$).
+
+3. NUMBERED TABLES (CRITICAL — DO NOT SKIP):
+   - Convert EVERY numbered table (Table 1.1, Table 1.2, Table 2.3, etc.) into a complete GitHub-flavored Markdown table.
+   - Include ALL rows, ALL columns, and ALL cell values — including dotted blank fill-in cells (treat them as blank entries: write `...`).
+   - Prefix each table with its label: **Table X.Y: Description**
+   - Example:
+     **Table 1.2: IUPAC Names of Carboxylic Acids**
+     | Compound | IUPAC Name |
+     | --- | --- |
+     | H-COOH | ... |
+     | CH3-COOH | Ethanoic acid |
+
+4. FIGURES, DIAGRAMS & ILLUSTRATIONS (CRITICAL — DO NOT SKIP):
+   - For EVERY diagram, figure, illustration, apparatus, ray diagram, circuit schematic, graph, or chart on the page:
+     a) Preserve the exact figure label as written: `Fig. 2.5 (a)`, `Fig. 3.1`, etc.
+     b) Insert a rich descriptive block immediately after the label:
+        [Figure Fig.X.Y(a): <detailed description including: shape/geometry, all labeled components/parts, arrows/directions, axes labels, scientific concept illustrated, how components relate to each other>]
+   - Example: [Figure Fig.2.5(a): Two transparent glass spheres overlapping at their centers. The overlapping intersection region forms a biconvex (convex) lens shape. The lens is thick at the center and thin at the edges. This illustrates how a convex (converging) lens is formed from two spherical transparent surfaces.]
+
+5. ACTIVITIES & SOLVED EXAMPLES:
+   - Keep solved numerical problems clearly formatted with: Given, Find, Formula, Step-by-step working, and Final answer.
+   - Keep Activities and Let us Learn boxes as-is, formatted in clean Markdown.
+
+6. FIDELITY:
    - Transcribe all text verbatim without summarizing, skipping content, or hallucinating.
+   - If a cell in a table is blank/dotted (fill in the blank), write `...` in that cell.
 """
 
 LATEX_FORMULA_REGEX = [

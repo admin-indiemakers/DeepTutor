@@ -223,6 +223,63 @@ def get_session(session_id: str) -> Optional[dict]:
     return None
 
 
+def get_or_create_topic_session(user_id: str, topic_id: str, title: str = "New Chat Session") -> dict:
+    with DBContext() as db:
+        s = (
+            db.query(ChatSession)
+            .filter(ChatSession.user_id == user_id, ChatSession.topic_id == topic_id)
+            .order_by(ChatSession.started_at.desc())
+            .first()
+        )
+        if not s:
+            sid = new_id()
+            started = now_iso()
+            s = ChatSession(
+                id=sid,
+                user_id=user_id,
+                topic_id=topic_id,
+                session_title=title,
+                started_at=started,
+            )
+            db.add(s)
+            db.commit()
+            return {
+                "id": sid,
+                "user_id": user_id,
+                "topic_id": topic_id,
+                "session_title": title,
+                "started_at": started,
+                "ended_at": None,
+                "messages": [],
+            }
+
+        messages = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.session_id == s.id)
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+        return {
+            "id": s.id,
+            "user_id": s.user_id,
+            "topic_id": s.topic_id,
+            "session_title": s.session_title,
+            "started_at": s.started_at,
+            "ended_at": s.ended_at,
+            "messages": [
+                {
+                    "id": m.id,
+                    "session_id": m.session_id,
+                    "role": m.role,
+                    "content": m.content,
+                    "metadata": m.meta,
+                    "created_at": m.created_at,
+                }
+                for m in messages
+            ],
+        }
+
+
 def delete_session(session_id: str) -> bool:
     with DBContext() as db:
         db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete(synchronize_session=False)

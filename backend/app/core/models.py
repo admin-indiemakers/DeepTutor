@@ -76,8 +76,8 @@ class ChatSession(Base):
     __tablename__ = 'chat_sessions'
 
     id = Column(String, primary_key=True)
-    user_id = Column(String, ForeignKey('users.id'), nullable=False)
-    topic_id = Column(String, nullable=True)
+    user_id = Column(String, ForeignKey('users.id'), nullable=False, index=True)
+    topic_id = Column(String, nullable=True, index=True)
     session_title = Column(String, nullable=False)
     started_at = Column(String, default=lambda: datetime.utcnow().isoformat())
     ended_at = Column(String, nullable=True)
@@ -90,7 +90,7 @@ class ChatMessage(Base):
     __tablename__ = 'chat_messages'
 
     id = Column(String, primary_key=True)
-    session_id = Column(String, ForeignKey('chat_sessions.id'), nullable=False)
+    session_id = Column(String, ForeignKey('chat_sessions.id'), nullable=False, index=True)
     role = Column(String, nullable=False)  # 'user' or 'assistant'
     content = Column(Text, nullable=False)
     _metadata = Column("metadata", Text, default="{}")  # Stored as stringified JSON

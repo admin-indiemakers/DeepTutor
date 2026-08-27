@@ -28,6 +28,11 @@ class CreateSessionRequest(BaseModel):
     session_title: str = "New Chat Session"
 
 
+class TopicSessionRequest(BaseModel):
+    topic_id: str
+    session_title: Optional[str] = "Chapter Chat"
+
+
 class MessageRequest(BaseModel):
     content: str
     language: Optional[str] = "english"
@@ -53,6 +58,19 @@ async def create_session(
         title=body.session_title,
     )
     return session
+
+
+@router.post("/sessions/topic")
+async def get_or_create_topic_session(
+    body: TopicSessionRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Ultra-fast unified endpoint to get or create a session and fetch all its messages in 1 query."""
+    return db.get_or_create_topic_session(
+        user_id=user["id"],
+        topic_id=body.topic_id,
+        title=body.session_title or "Chapter Chat",
+    )
 
 
 @router.get("/sessions")

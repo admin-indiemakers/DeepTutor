@@ -142,7 +142,7 @@ class GeminiClient:
         client = self._get_client()
 
         models_to_try = [resolved_model]
-        for fallback in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash", "gemini-flash-latest"]:
+        for fallback in ["gemini-2.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite-preview", "gemini-2.5-pro", "gemini-pro-latest"]:
             if fallback not in models_to_try:
                 models_to_try.append(fallback)
 
@@ -196,7 +196,7 @@ class GeminiClient:
         client = self._get_client()
 
         models_to_try = [resolved_model]
-        for fallback in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"]:
+        for fallback in ["gemini-2.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite-preview", "gemini-2.5-pro", "gemini-pro-latest"]:
             if fallback not in models_to_try:
                 models_to_try.append(fallback)
 

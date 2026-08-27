@@ -70,6 +70,8 @@ export const chatApi = {
   sessions: (scope?: string) => api.get('/chat/sessions', { params: scope ? { scope } : {} }),
   createSession: (topicId: string, title: string) =>
     api.post('/chat/sessions', { topic_id: topicId, session_title: title }),
+  getTopicSession: (topicId: string, title?: string) =>
+    api.post('/chat/sessions/topic', { topic_id: topicId, session_title: title || 'Chapter Chat' }),
   messages: (sessionId: string) =>
     api.get(`/chat/sessions/${sessionId}/messages`),
   deleteSession: (sessionId: string) =>

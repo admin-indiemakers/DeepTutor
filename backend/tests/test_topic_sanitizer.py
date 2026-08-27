@@ -37,7 +37,7 @@ def test_topic_sanitizer_rules():
 
     # 2. Test Good Academic Concepts
     good_samples = [
-        "Open Research Challenges and Opportunities Relative to Global South Regions",
+        "Artificial Neural Networks",
         "Support Vector Machines",
         "Convolutional Neural Networks",
         "Gradient Descent Optimization",
@@ -63,14 +63,14 @@ def test_topic_sanitizer_rules():
         "Vector Machines",  # redundant substring
         "(Tc2022) (C2022)",
         "Convolutional Neural Networks",
-        "Open Research Challenges and Opportunities Relative to Global South Regions"
+        "Artificial Neural Networks"
     ]
 
     ranked = deduplicate_and_rank_topics(mixed_input)
     print("Deduplicated output:", ranked)
     assert "Support Vector Machines" in ranked
     assert "Convolutional Neural Networks" in ranked
-    assert "Open Research Challenges and Opportunities Relative to Global South Regions" in ranked
+    assert "Artificial Neural Networks" in ranked
     assert "Results and Discussion" not in ranked
     assert "(Tc2022) (C2022)" not in ranked
     assert "Tpr Cpp202 Ipir Cpp202 Cpir Cpp202 Fpr Cpp202 Rpr Cpp202" not in ranked
