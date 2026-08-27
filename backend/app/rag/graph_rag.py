@@ -77,7 +77,6 @@ from app.core.config import get_settings
 from app.rag.pipeline.parser import document_parser
 from app.rag.pipeline.section_tree import build_section_tree
 from app.rag.pipeline.chunker import semantic_chunker
-from app.rag.pipeline.content_relevance_gate import content_relevance_gate, GateResult
 
 # ── Stage 2: Multi-provider embeddings + triplet extraction ───────────────
 from app.rag.pipeline.embedder import embedding_pipeline
@@ -1051,30 +1050,6 @@ class GraphRAGPipeline:
                 "Please verify that the PDF has selectable text and is not empty or scanned/image-only."
             )
 
-        # ── Stage 0: Content Relevance Gate ──────────────────────────────────
-        # Runs AFTER parsing (needs text) but BEFORE chunking/embedding (saves cost).
-        # Cheap stages (A+B) cost <2ms; Stage C ~100ms embedding; Stage D ~1s LLM.
-        if progress_callback:
-            await progress_callback("relevance_check", 8)
-
-        gate_result: GateResult = await content_relevance_gate.check(pages, topic_id)
-        if not gate_result.passed:
-            logger.warning(
-                "ContentRelevanceGate: Document REJECTED (topic=%s, code=%s, stage=%s): %s",
-                topic_id,
-                gate_result.rejection_code,
-                gate_result.stage_reached,
-                gate_result.reason[:120],
-            )
-            raise ValueError(
-                f"[{gate_result.rejection_code}] {gate_result.reason}"
-            )
-
-        logger.info(
-            "ContentRelevanceGate: Document PASSED (topic=%s, domain=%s, score=%.3f)",
-            topic_id, gate_result.subject_domain, gate_result.confidence,
-        )
-
         # ── Stage 1b: Build section tree ─────────────────────────────────────
         section_nodes = build_section_tree(pages)
 
@@ -1098,18 +1073,13 @@ class GraphRAGPipeline:
         if progress_callback:
             await progress_callback("embedding", 50)
 
-        # ── Stage 3a: Store in FAISS vector store ─────────────────────────────
+        # ── Stage 3a: Store in vector store ───────────────────────────────────
         _vs.add_chunks(topic_id, chunks, embeddings)
 
         # Invalidate query result cache for this topic (new data)
         await query_result_cache.invalidate(topic_id)
 
         # ── Stage 2b + 3b: Instant Key Topics & Graph Nodes ───────────────────
-        # NOTE: this synchronous phase only extracts *concept* entities from
-        # section headings/paths — it does not run the LLM-based relationship/
-        # triplet extraction. That happens in `_background_triplet_extraction`
-        # below, after this function has already returned. The stats dict
-        # reflects that split honestly instead of reporting fabricated zeros.
         synchronous_entities: List[Dict] = []
 
         extracted_topics = _extract_key_topics_from_chunks(chunks)
@@ -1181,12 +1151,13 @@ class GraphRAGPipeline:
         _spawn_background_task(_background_triplet_extraction())
 
         stats = _gs.get_graph_stats(topic_id)
+        entity_count = len(synchronous_entities) or stats.get("node_count", 0)
         return {
             "chunks_indexed": total,
-            "entities_extracted_sync": len(synchronous_entities),
-            "graph_triplet_extraction": "running_in_background",
-            "graph_nodes": stats["node_count"],
-            "graph_edges": stats["edge_count"],
+            "entities_extracted": entity_count,
+            "entities_extracted_sync": entity_count,
+            "graph_nodes": stats.get("node_count", entity_count),
+            "graph_edges": stats.get("edge_count", 0),
             "extracted_topics": extracted_topics,
             "chunking_strategy": "semantic_500_1000w",
             "vector_backend": settings.VECTOR_STORE_BACKEND,

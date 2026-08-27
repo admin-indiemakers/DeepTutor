@@ -414,6 +414,7 @@ export default function ChatPage() {
 
   const [liveSources, setLiveSources] = useState<Source[]>([])
   const [extMessages, setExtMessages] = useState<ExtendedMessage[]>([])
+  const [loadingMessages, setLoadingMessages] = useState(false)
   const [selectedModel, setSelectedModel] = useState('IndieTutor (Gemini Flash)')
 
   // Centralized Language Store (UI Language vs AI Response Language)
@@ -497,6 +498,16 @@ export default function ChatPage() {
       fetchKnowledgeGraph()
     }
   }, [activeSession?.id, showGraphPanel, fetchKnowledgeGraph])
+
+  // Smooth scroll to bottom when session finishes loading or new messages arrive
+  useEffect(() => {
+    if (!loadingMessages && extMessages.length > 0) {
+      const timer = setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }, 60)
+      return () => clearTimeout(timer)
+    }
+  }, [loadingMessages, sessionId])
 
   // Fetch Learn-scoped sessions fresh on mount and window focus (excludes subject chapter chats)
   const { refetch: refetchSessions } = useQuery({
@@ -634,6 +645,11 @@ export default function ChatPage() {
     const cached = messagesCacheRef.current.get(sessionId)
     if (cached && cached.length > 0) {
       setExtMessages(cached)
+      setLoadingMessages(false)
+    } else {
+      setExtMessages([])
+      setMessages([])
+      setLoadingMessages(true)
     }
 
     chatApi
@@ -666,6 +682,9 @@ export default function ChatPage() {
           setMessages([])
           navigate('/chat', { replace: true })
         }
+      })
+      .finally(() => {
+        setLoadingMessages(false)
       })
   }, [sessionId, sessions, user?.id, navigate, setActiveSession, setMessages])
 
@@ -1067,11 +1086,58 @@ export default function ChatPage() {
         )}
 
         {/* Workspace Content Area */}
-        <div className="flex-1 overflow-y-auto flex flex-col">
+        <div className="flex-1 overflow-y-auto flex flex-col relative">
+          <AnimatePresence mode="wait">
+            {loadingMessages ? (
+              <motion.div
+                key="loading-session-state"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 max-w-2xl mx-auto w-full space-y-6"
+              >
+                {/* Glowing AI Tutor Loader */}
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl animate-pulse" />
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-50 via-white to-blue-50 border border-indigo-100 shadow-sm flex items-center justify-center relative z-10">
+                    <Sparkles className="w-7 h-7 text-indigo-600 animate-spin" style={{ animationDuration: '3s' }} />
+                  </div>
+                </div>
 
-          {/* HERO STATE */}
-          {allMessages.length === 0 && (
-            <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-10 max-w-3xl mx-auto w-full text-center">
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-black text-slate-800 tracking-tight">
+                    {uiLanguage === 'sv' ? 'Laddar studiekonversation...' : 'Loading Study Session...'}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-400">
+                    {uiLanguage === 'sv' ? 'Hämtar lektionsanteckningar & kunskapsgraf...' : 'Retrieving notes & knowledge graph...'}
+                  </p>
+                </div>
+
+                {/* Shimmering Skeleton Chat Thread Preview */}
+                <div className="w-full space-y-4 pt-3">
+                  <div className="flex justify-end">
+                    <div className="w-2/3 sm:w-1/2 h-10 bg-slate-100 rounded-2xl rounded-tr-none animate-pulse" />
+                  </div>
+                  <div className="flex justify-start space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse shrink-0" />
+                    <div className="space-y-2 w-4/5 sm:w-3/4">
+                      <div className="h-4 bg-slate-100 rounded-full w-full animate-pulse" />
+                      <div className="h-4 bg-slate-100 rounded-full w-5/6 animate-pulse" />
+                      <div className="h-4 bg-slate-100/80 rounded-full w-2/3 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : allMessages.length === 0 ? (
+              <motion.div
+                key="hero-welcome-state"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-10 max-w-3xl mx-auto w-full text-center"
+              >
 
               {/* AI Tutor Avatar Graphic */}
               <div className="relative w-36 h-36 sm:w-48 sm:h-48 mb-6 mx-auto pointer-events-none">
@@ -1232,12 +1298,16 @@ export default function ChatPage() {
 
               </div>
 
-            </div>
-          )}
-
-          {/* ACTIVE CHAT THREAD */}
-          {(extMessages.length > 0 || isStreaming) && (
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl mx-auto w-full">
+            </motion.div>
+          ) : (
+            <motion.div
+              key={`chat-thread-${sessionId}`}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl mx-auto w-full"
+            >
               {extMessages.map((msg) => (
                 <ChatMessage
                   key={msg.id}
@@ -1251,67 +1321,76 @@ export default function ChatPage() {
               <StreamingMessageBubble liveSources={liveSources} />
 
               <div ref={bottomRef} />
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
 
         </div>
 
-        {/* Input Bar (Sticky at bottom when chat messages exist) */}
-        {allMessages.length > 0 && (
-          <div className="p-3 sm:p-4 border-t border-border bg-white">
-            <div className="max-w-4xl mx-auto bg-white border border-border rounded-[1.5rem] p-3 sm:p-3.5 focus-within:border-info focus-within:ring-2 focus-within:ring-info/20 transition-all shadow-sm">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                className="w-full bg-transparent resize-none outline-none text-[#3C3C3C] font-medium text-sm sm:text-base placeholder-[#AFAFAF]"
-                placeholder={uiLanguage === 'sv' ? 'Ställ en följdfråga...' : 'Ask follow-up question...'}
-                style={{ minHeight: '28px', maxHeight: '160px' }}
-              />
-              <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#E2E8F0]">
-                <div className="flex items-center gap-2">
-                  {/* Language Quick Toggle */}
+        {/* Input Bar (Sticky at bottom when chat messages exist and full page is loaded) */}
+        <AnimatePresence>
+          {!loadingMessages && allMessages.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 15 }}
+              transition={{ duration: 0.25 }}
+              className="p-3 sm:p-4 border-t border-border bg-white"
+            >
+              <div className="max-w-4xl mx-auto bg-white border border-border rounded-[1.5rem] p-3 sm:p-3.5 focus-within:border-info focus-within:ring-2 focus-within:ring-info/20 transition-all shadow-sm">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  className="w-full bg-transparent resize-none outline-none text-[#3C3C3C] font-medium text-sm sm:text-base placeholder-[#AFAFAF]"
+                  placeholder={uiLanguage === 'sv' ? 'Ställ en följdfråga...' : 'Ask follow-up question...'}
+                  style={{ minHeight: '28px', maxHeight: '160px' }}
+                />
+                <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#E2E8F0]">
+                  <div className="flex items-center gap-2">
+                    {/* Language Quick Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (aiLanguage === 'english') setAiLanguage('swedish')
+                        else if (aiLanguage === 'swedish') setAiLanguage('arabic')
+                        else setAiLanguage('english')
+                      }}
+                      className="flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 px-2.5 py-1.5 rounded-[1.25rem] border border-slate-200 transition-colors cursor-pointer"
+                      title="Switch AI response language"
+                    >
+                      <span>{aiLanguage === 'english' ? '🇬🇧 EN' : aiLanguage === 'swedish' ? '🇸🇪 SV' : '🇸🇦 AR'}</span>
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#3C3C3C] bg-white hover:bg-[#DDF4FF] px-2.5 py-1.5 rounded-[1.25rem] border border-[#E2E8F0] hover:border-[#1CB0F6]/30 elevation-1 transition-colors cursor-pointer"
+                    >
+                      <Paperclip size={13} className="text-[#1CB0F6]" />
+                      <span>{uiLanguage === 'sv' ? 'Bifoga PDF' : 'Attach PDF'}</span>
+                    </button>
+                    <button
+                      onClick={toggleVoiceInput}
+                      className={`p-2 rounded-[1.25rem] transition-colors cursor-pointer ${isListening ? 'text-[#FF4B4B] bg-[#FFD1D1] animate-pulse' : 'text-[#777777] hover:text-[#3C3C3C] hover:bg-[#E5E5E5]'
+                        }`}
+                      title="Voice input"
+                    >
+                      <Mic size={16} />
+                    </button>
+                  </div>
                   <button
-                    type="button"
-                    onClick={() => {
-                      if (aiLanguage === 'english') setAiLanguage('swedish')
-                      else if (aiLanguage === 'swedish') setAiLanguage('arabic')
-                      else setAiLanguage('english')
-                    }}
-                    className="flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 px-2.5 py-1.5 rounded-[1.25rem] border border-slate-200 transition-colors cursor-pointer"
-                    title="Switch AI response language"
+                    onClick={() => handleSend()}
+                    disabled={!input.trim() || isStreaming}
+                    className="p-2.5 rounded-[1.25rem] bg-[#1CB0F6] hover:bg-[#1899D6] text-white disabled:opacity-30 transition-all elevation-2 cursor-pointer"
                   >
-                    <span>{aiLanguage === 'english' ? '🇬🇧 EN' : aiLanguage === 'swedish' ? '🇸🇪 SV' : '🇸🇦 AR'}</span>
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 text-xs font-bold text-[#3C3C3C] bg-white hover:bg-[#DDF4FF] px-2.5 py-1.5 rounded-[1.25rem] border border-[#E2E8F0] hover:border-[#1CB0F6]/30 elevation-1 transition-colors cursor-pointer"
-                  >
-                    <Paperclip size={13} className="text-[#1CB0F6]" />
-                    <span>{uiLanguage === 'sv' ? 'Bifoga PDF' : 'Attach PDF'}</span>
-                  </button>
-                  <button
-                    onClick={toggleVoiceInput}
-                    className={`p-2 rounded-[1.25rem] transition-colors cursor-pointer ${isListening ? 'text-[#FF4B4B] bg-[#FFD1D1] animate-pulse' : 'text-[#777777] hover:text-[#3C3C3C] hover:bg-[#E5E5E5]'
-                      }`}
-                    title="Voice input"
-                  >
-                    <Mic size={16} />
+                    <Send size={15} />
                   </button>
                 </div>
-                <button
-                  onClick={() => handleSend()}
-                  disabled={!input.trim() || isStreaming}
-                  className="p-2.5 rounded-[1.25rem] bg-[#1CB0F6] hover:bg-[#1899D6] text-white disabled:opacity-30 transition-all elevation-2 cursor-pointer"
-                >
-                  <Send size={15} />
-                </button>
               </div>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </main>
 

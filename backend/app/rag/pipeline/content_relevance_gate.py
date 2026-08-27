@@ -17,7 +17,7 @@ Architecture:
 │       • Non-study content (receipts, forms, menus)               │
 │          │ PASS                                                  │
 │  [B] Heuristic Filter ──FAIL──► REJECT (garbled/OCR junk)        │
-│          │ PASS                                                  │
+│          │ PASS                                                   │
 │  [C] Embedding Similarity ──FAIL──► REJECT (off-topic)           │
 │          │ PASS                                                  │
 │  [D] LLM Classifier ──FAIL──► REJECT (ambiguous cases)           │
@@ -279,6 +279,8 @@ def _check_adult_content(text: str) -> Optional[Tuple[str, str]]:
     Returns (matched_phrase, tier) if adult content detected,
     or None if the document is clean.
     """
+
+    
     scan_sample = text[:5000]
     context_sample = text[:3000]
 
@@ -693,7 +695,7 @@ async def _stage_c_embedding_similarity(
                 rejection_code="off_topic",
                 reason=(
                     "This document does not appear to be academic study material. "
-                    "IndieTutor accepts textbooks, lecture notes, research papers, "
+                    "DeepTutor accepts textbooks, lecture notes, research papers, "
                     "past exam papers, and course materials."
                 ),
                 confidence=1.0 - best_score,
