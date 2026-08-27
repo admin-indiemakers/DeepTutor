@@ -68,29 +68,12 @@ class _TopicGraph:
         self._relations_path = self.dir / "relations.json"
         self._triplets_path = self.dir / "triplets.json"
 
-        # 1. Try loading from Neon Cloud PostgreSQL first
-        cloud_graph = None
-        try:
-            from app.core import database as db
-            cloud_graph = db.get_knowledge_graph(topic_id)
-        except Exception:
-            pass
-
-        if cloud_graph and (cloud_graph.get("entities") or cloud_graph.get("relations") or cloud_graph.get("triplets")):
-            self._entities: Dict[str, Dict] = cloud_graph.get("entities", {})
-            self._relations: Dict[str, Dict] = cloud_graph.get("relations", {})
-            self._triplets: List[Dict] = cloud_graph.get("triplets", [])
-        else:
-            self._entities: Dict[str, Dict] = _load_json(self._entities_path, {})
-            self._relations: Dict[str, Dict] = _load_json(self._relations_path, {})
-            self._triplets: List[Dict] = _load_json(self._triplets_path, [])
+        self._entities: Dict[str, Dict] = _load_json(self._entities_path, {})
+        self._relations: Dict[str, Dict] = _load_json(self._relations_path, {})
+        self._triplets: List[Dict] = _load_json(self._triplets_path, [])
 
     def _sync_to_cloud(self):
-        try:
-            from app.core import database as db
-            db.save_knowledge_graph(self.topic_id, self._entities, self._relations, self._triplets)
-        except Exception as e:
-            print(f"[GRAPH KV] Cloud sync error for {self.topic_id}: {e}")
+        pass
 
     # ── Entities ──────────────────────────────────────────────────────────────
     def add_entities(self, entities: List[Dict]) -> None:
@@ -189,12 +172,14 @@ class _TopicGraph:
     def find_entities_in_query(self, query: str, max_entities: int = 6) -> List[str]:
         """
         Instant heuristic match of entities mentioned in user query (< 0.1ms).
-        Matches n-grams (3-gram down to 1-gram) against the loaded entity index.
+        Matches n-grams (3-gram down to 1-gram), acronyms, and aliases against the loaded entity index.
         """
         text_clean = re.sub(r'[^\w\s]', ' ', query.lower())
         words = text_clean.split()
         matched = []
         seen = set()
+
+        # 1. Standard n-gram matching
         for n in (3, 2, 1):
             for i in range(len(words) - n + 1):
                 ngram = "_".join(words[i:i+n])
@@ -203,6 +188,38 @@ class _TopicGraph:
                     matched.append(self._entities[ngram]["name"])
                     if len(matched) >= max_entities:
                         return matched
+
+        # 2. Acronym expansion matching (e.g., "svm" -> "support_vector_machines")
+        try:
+            from app.rag.query_engine import ACRONYM_MAP
+            for w in words:
+                if w in ACRONYM_MAP:
+                    for phrase in ACRONYM_MAP[w]:
+                        safe_phrase = _safe_id(phrase)
+                        if safe_phrase in self._entities and safe_phrase not in seen:
+                            seen.add(safe_phrase)
+                            matched.append(self._entities[safe_phrase]["name"])
+                            if len(matched) >= max_entities:
+                                return matched
+                        # Also check prefix/substring match in entities
+                        for eid, edata in self._entities.items():
+                            if (safe_phrase in eid or eid in safe_phrase) and eid not in seen:
+                                seen.add(eid)
+                                matched.append(edata["name"])
+                                if len(matched) >= max_entities:
+                                    return matched
+        except Exception:
+            pass
+
+        # 3. Direct entity name containment
+        for eid, edata in self._entities.items():
+            ename_clean = re.sub(r'[^\w\s]', ' ', edata.get("name", "").lower()).strip()
+            if ename_clean and ename_clean in text_clean and eid not in seen:
+                seen.add(eid)
+                matched.append(edata["name"])
+                if len(matched) >= max_entities:
+                    return matched
+
         return matched
 
     # ── BFS multi-hop traversal ───────────────────────────────────────────────

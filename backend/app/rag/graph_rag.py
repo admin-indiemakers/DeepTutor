@@ -1510,7 +1510,7 @@ class GraphRAGPipeline:
                 f"2. Do NOT repeat or continue explaining unrelated topics from Conversation History.\n"
                 f"3. Using the Document Context and Knowledge Graph as your primary reference: {prompt_instruction}\n"
                 f"4. Do NOT include bracketed file names or page numbers like [file.pdf p.4] or [p.4] anywhere in the response text. The UI displays sources separately.\n"
-                f"5. If the Student Question is completely unrelated to anything in the Document Context, state: 'The provided material doesn't cover this — I can't answer confidently from it.' Otherwise, explain the concept thoroughly from the context."
+                f"5. Synthesize a comprehensive, clear, and structured answer (use comparison tables, bullet points, and key formulas where relevant). Use the Document Context and Knowledge Graph as the primary reference to thoroughly explain and compare the requested concepts."
             )
         else:
             user_content = (
@@ -1565,10 +1565,10 @@ class GraphRAGPipeline:
             accumulated_text += remainder
             yield f"data: {json.dumps({'type': 'token', 'data': remainder})}\n\n"
 
-        # Step 7: Wait for image search to finish, and stream verified diagrams
+        # Step 7: Stream verified diagrams if ready within 3.0s
         if image_search_task:
             try:
-                verified_images = await asyncio.wait_for(image_search_task, timeout=15.0)
+                verified_images = await asyncio.wait_for(image_search_task, timeout=3.0)
                 if verified_images:
                     img_markdown = "\n\n---\n\n### 🖼️ AI-Verified Educational Diagrams\n\n"
                     for img in verified_images:
@@ -1598,11 +1598,17 @@ class GraphRAGPipeline:
             except Exception:
                 logger.warning("Image search injection failed (question=%r)", question, exc_info=True)
 
-        # Step 8: Self-RAG Hallucination Guard verification (non-blocking async thread)
-        grounding = await asyncio.to_thread(verify_response_grounding, accumulated_text, vector_chunks)
-        yield f"data: {json.dumps({'type': 'grounding', 'data': grounding})}\n\n"
-
+        # Step 8: Complete streaming immediately for instant UI feedback
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        # Asynchronously verify grounding in background without blocking user
+        async def _run_grounding_verification():
+            try:
+                await asyncio.to_thread(verify_response_grounding, accumulated_text, vector_chunks)
+            except Exception:
+                pass
+
+        _spawn_background_task(_run_grounding_verification())
 
     async def simple_query(
         self,

@@ -68,13 +68,17 @@ export default function Layout() {
     const sid = confirmDeleteSid
     if (!sid) return
     setConfirmDeleteSid(null)
+
+    // 1. Instant optimistic UI deletion (0ms)
+    removeSession(sid)
+    if (activeSession?.id === sid) {
+      setActiveSession(null)
+      navigate('/chat')
+    }
+
+    // 2. Perform backend API deletion asynchronously
     try {
       await chatApi.deleteSession(sid)
-      removeSession(sid)
-      if (activeSession?.id === sid) {
-        setActiveSession(null)
-        navigate('/chat')
-      }
     } catch (err) {
       console.error('Failed to delete session:', err)
     }

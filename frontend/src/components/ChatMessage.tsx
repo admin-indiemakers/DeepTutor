@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
-import { Bot, User, Copy, Check } from 'lucide-react'
+import { Bot, User, Copy, Check, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
 import SourceCard, { type Source } from './SourceCard'
 import MermaidDiagram from './MermaidDiagram'
@@ -76,64 +76,81 @@ const ChatMessageComponent = ({ role, content, isStreaming, sources, grounding }
                   <span>{grounding.formatted_badge}</span>
                 </div>
               )}
-              <ReactMarkdown
-                remarkPlugins={REMARK_PLUGINS}
-                rehypePlugins={REHYPE_PLUGINS}
-                components={{
-                  code({ node, className, children, ...props }: any) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    const language = match ? match[1] : ''
-                    const codeStr = String(children).replace(/\n$/, '')
-                    if (language === 'mermaid') {
-                      if (isStreaming) {
-                        return (
-                          <div className="my-3 p-3 rounded-xl border border-border bg-slate-50/80 text-xs font-mono text-slate-500 animate-pulse flex items-center gap-2">
-                            <span>📊</span>
-                            <span>Generating interactive diagram...</span>
-                          </div>
-                        )
+
+              {/* Instant Thinking / Retrieval Skeleton when response starts */}
+              {isStreaming && !displayContent && (
+                <div className="flex items-center gap-2.5 py-1.5 text-sm font-medium text-brand-primary animate-pulse">
+                  <Sparkles size={16} className="text-brand-primary animate-spin" style={{ animationDuration: '3s' }} />
+                  <span className="font-semibold">Thinking & searching textbook...</span>
+                  <span className="inline-flex gap-1 ml-1">
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                  </span>
+                </div>
+              )}
+
+              {displayContent ? (
+                <ReactMarkdown
+                  remarkPlugins={REMARK_PLUGINS}
+                  rehypePlugins={REHYPE_PLUGINS}
+                  components={{
+                    code({ node, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '')
+                      const language = match ? match[1] : ''
+                      const codeStr = String(children).replace(/\n$/, '')
+                      if (language === 'mermaid') {
+                        if (isStreaming) {
+                          return (
+                            <div className="my-3 p-3 rounded-xl border border-border bg-slate-50/80 text-xs font-mono text-slate-500 animate-pulse flex items-center gap-2">
+                              <span>📊</span>
+                              <span>Generating interactive diagram...</span>
+                            </div>
+                          )
+                        }
+                        return <MermaidDiagram chart={codeStr} />
                       }
-                      return <MermaidDiagram chart={codeStr} />
-                    }
-                    return (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    )
-                  },
-                  img({ node, src, alt, ...props }: any) {
-                    return (
-                      <span className="block my-4 max-w-full overflow-hidden rounded-2xl border border-border/80 shadow-md bg-white p-2.5 transition-all hover:shadow-lg">
-                        <img
-                          src={src}
-                          alt={alt || 'AI Verified Educational Diagram'}
-                          className="w-full max-h-[460px] object-contain rounded-xl mx-auto block bg-white"
-                          loading="lazy"
-                          onError={(e: any) => {
-                            // If hotlink blocked or 404, hide smoothly
-                            e.currentTarget.parentElement.style.display = 'none'
-                          }}
-                          {...props}
-                        />
-                        {alt && (
-                          <span className="block text-center text-xs font-semibold text-text-muted mt-2 px-2">
-                            🖼️ {alt}
-                          </span>
-                        )}
-                      </span>
-                    )
-                  },
-                }}
-              >
-                {displayContent}
-              </ReactMarkdown>
-              {isStreaming && (
+                      return (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      )
+                    },
+                    img({ node, src, alt, ...props }: any) {
+                      return (
+                        <span className="block my-4 max-w-full overflow-hidden rounded-2xl border border-border/80 shadow-md bg-white p-2.5 transition-all hover:shadow-lg">
+                          <img
+                            src={src}
+                            alt={alt || 'AI Verified Educational Diagram'}
+                            className="w-full max-h-[460px] object-contain rounded-xl mx-auto block bg-white"
+                            loading="lazy"
+                            onError={(e: any) => {
+                              // If hotlink blocked or 404, hide smoothly
+                              e.currentTarget.parentElement.style.display = 'none'
+                            }}
+                            {...props}
+                          />
+                          {alt && (
+                            <span className="block text-center text-xs font-semibold text-text-muted mt-2 px-2">
+                              🖼️ {alt}
+                            </span>
+                          )}
+                        </span>
+                      )
+                    },
+                  }}
+                >
+                  {displayContent}
+                </ReactMarkdown>
+              ) : null}
+
+              {isStreaming && displayContent ? (
                 <span className="inline-flex gap-1.5 ml-1.5 align-middle">
                   <span className="typing-dot" />
                   <span className="typing-dot" />
                   <span className="typing-dot" />
                 </span>
-              )}
+              ) : null}
             </div>
           ) : (
             <p className="text-white text-base font-semibold leading-relaxed">{content}</p>

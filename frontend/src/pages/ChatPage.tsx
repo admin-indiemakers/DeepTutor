@@ -4,12 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Paperclip, Plus, MessageSquare,
-  Sparkles, BookOpen, Brain, GraduationCap,
-  CheckCircle, AlertCircle, Loader2, Trophy, Trash2,
-  Mic, MicOff, Search, Share2, Download,
-  ChevronDown, LogOut, Network,
+  Sparkles, Trash2, Trophy, CheckCircle, AlertCircle,
+  Mic, MicOff, Star,
   Clock, ArrowRight, Menu, X, Zap,
-  ListChecks, Star, Lightbulb
+  ListChecks, Lightbulb
 } from 'lucide-react'
 import { useChatStore } from '../stores/chatStore'
 import { useAuthStore } from '../stores/authStore'
@@ -45,6 +43,8 @@ export interface ActiveUpload {
   docId: string
   fileName: string
   sizeMb?: number
+  uploadPercent?: number
+  isUploadingNetwork?: boolean
 }
 
 // ─── Aesthetic Document Indexing Status Card ─────────────────────────────────────
@@ -60,12 +60,16 @@ function UploadStatusCard({
   onDismiss: (docId: string) => void
 }) {
   const [status, setStatus] = useState<any>({ status: 'indexing', progress: 5, stage: 'parsing' })
-  const [displayProgress, setDisplayProgress] = useState(5)
+  const [displayProgress, setDisplayProgress] = useState(upload.uploadPercent || 10)
   const hasTriggeredDoneRef = useRef(false)
   const hasTriggeredErrorRef = useRef(false)
 
   // ─── Lightweight Progress Interpolator (Zero CPU overhead) ───
   useEffect(() => {
+    if (upload.isUploadingNetwork) {
+      setDisplayProgress(upload.uploadPercent || 10)
+      return
+    }
     if (status.status === 'done') {
       setDisplayProgress(100)
       return
@@ -74,10 +78,9 @@ function UploadStatusCard({
       return
     }
 
-    const target = typeof status.progress === 'number' ? Math.max(5, status.progress) : 10
+    const target = typeof status.progress === 'number' ? Math.max(10, status.progress) : 15
     setDisplayProgress((prev) => {
       if (prev < target) return target
-      // Gentle synthetic climb while waiting for backend
       return Math.min(95, prev + 2)
     })
 
@@ -89,10 +92,12 @@ function UploadStatusCard({
     }, 1200)
 
     return () => clearInterval(timer)
-  }, [status])
+  }, [status, upload.isUploadingNetwork, upload.uploadPercent])
 
   // ─── Polling Backend Indexing Status (Clean 1000ms cadence) ────────────────────────
   useEffect(() => {
+    if (upload.isUploadingNetwork || upload.docId.startsWith('temp_')) return
+
     let doneTimer: any = null
     const interval = setInterval(async () => {
       try {
@@ -125,12 +130,20 @@ function UploadStatusCard({
       clearInterval(interval)
       if (doneTimer) clearTimeout(doneTimer)
     }
-  }, [upload.docId, onDone, onError, onDismiss])
+  }, [upload.docId, upload.isUploadingNetwork, onDone, onError, onDismiss])
 
-  const isDone = status.status === 'done' || displayProgress >= 100
+  const isDone = status.status === 'done' || (!upload.isUploadingNetwork && displayProgress >= 100)
   const isError = status.status === 'error' || status.status === 'rejected'
 
   const stageInfo = useMemo(() => {
+    if (upload.isUploadingNetwork) {
+      return {
+        label: 'Uploading to Cloud Storage',
+        step: `${upload.uploadPercent ?? 10}%`,
+        badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
+        description: `Transferring ${upload.fileName} to server (${upload.uploadPercent ?? 10}% transmitted)...`,
+      }
+    }
     if (isDone) {
       return {
         label: 'Knowledge Base Ready',
@@ -177,7 +190,7 @@ function UploadStatusCard({
       badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
       description: 'Extracting key concepts & entity relationship triplets for deep reasoning...',
     }
-  }, [isDone, isError, displayProgress, status.error, status.reason, status.status])
+  }, [upload.isUploadingNetwork, upload.uploadPercent, upload.fileName, isDone, isError, displayProgress, status.error, status.reason, status.status])
 
   return (
     <motion.div
@@ -385,7 +398,8 @@ export default function ChatPage() {
   const { sessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, token, logout } = useAuthStore()
+  const { user, token } = useAuthStore()
+  const logout = useAuthStore((s) => s.logout)
 
   // Selective Zustand subscriptions — does NOT subscribe to streamingContent directly!
   const sessions = useChatStore((s) => s.sessions)
@@ -415,7 +429,6 @@ export default function ChatPage() {
   const [liveSources, setLiveSources] = useState<Source[]>([])
   const [extMessages, setExtMessages] = useState<ExtendedMessage[]>([])
   const [loadingMessages, setLoadingMessages] = useState(false)
-  const [selectedModel, setSelectedModel] = useState('IndieTutor (Gemini Flash)')
 
   // Centralized Language Store (UI Language vs AI Response Language)
   const { uiLanguage, aiLanguage, setAiLanguage } = useLanguageStore()
@@ -429,7 +442,7 @@ export default function ChatPage() {
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef<any>(null)
 
-  const toggleVoiceInput = () => {
+  const toggleVoiceInput = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) {
       alert('Voice input is not supported in this browser. Please use Chrome, Edge, or Brave.')
@@ -469,7 +482,7 @@ export default function ChatPage() {
     } catch {
       setIsListening(false)
     }
-  }
+  }, [isListening])
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -478,7 +491,7 @@ export default function ChatPage() {
   const skipNextFetchRef = useRef<string | null>(null)
   const messagesCacheRef = useRef<Map<string, ExtendedMessage[]>>(new Map())
 
-  // Fetch knowledge graph for active session/topic
+  // Fetch knowledge graph for active session/topic with primitive dependencies and cache guard
   const fetchKnowledgeGraph = useCallback(async () => {
     const topicId = activeSession?.topic_id || activeSession?.id || 'general'
     try {
@@ -491,23 +504,13 @@ export default function ChatPage() {
     } catch (err) {
       console.error('Failed to load knowledge graph:', err)
     }
-  }, [activeSession])
+  }, [activeSession?.id, activeSession?.topic_id])
 
   useEffect(() => {
     if (activeSession?.id || showGraphPanel) {
       fetchKnowledgeGraph()
     }
   }, [activeSession?.id, showGraphPanel, fetchKnowledgeGraph])
-
-  // Smooth scroll to bottom when session finishes loading or new messages arrive
-  useEffect(() => {
-    if (!loadingMessages && extMessages.length > 0) {
-      const timer = setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-      }, 60)
-      return () => clearTimeout(timer)
-    }
-  }, [loadingMessages, sessionId])
 
   // Fetch Learn-scoped sessions fresh on mount and window focus (excludes subject chapter chats)
   const { refetch: refetchSessions } = useQuery({
@@ -620,7 +623,8 @@ export default function ChatPage() {
         setStreaming(false)
       },
     })
-  }, [sessionId, input, isStreaming, activeSession, token, navigate, refetchSessions, setActiveSession, addMessage, appendStreamToken, clearStreamingContent, setStreaming])
+  // Use primitive activeSession?.id instead of whole object to prevent unnecessary recreations
+  }, [sessionId, input, isStreaming, activeSession?.id, token, aiLanguage, navigate, refetchSessions, setActiveSession, addMessage, appendStreamToken, clearStreamingContent, setStreaming])
 
   // Load session messages when sessionId changes
   useEffect(() => {
@@ -700,34 +704,13 @@ export default function ChatPage() {
   }, [location.state, handleSend, location.pathname, navigate, extMessages.length])
 
   // Group sessions by date (Only show custom document learning sessions)
-  const groupedSessions = useMemo(() => {
-    const filtered = sessions.filter((s) => {
-      const isSubjectSession = s.topic_id?.startsWith('sslc-') ||
-        s.topic_id?.startsWith('math-') ||
-        s.topic_id?.startsWith('phys-') ||
-        s.topic_id?.startsWith('chem-')
-      if (isSubjectSession) return false
-      return s.session_title.toLowerCase().includes(searchQuery.toLowerCase())
+  // Memoized sessions for the left drawer search filter (Excludes subject curriculum chapters)
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((s) => {
+      if (isSubjectCurriculumTopic(s.topic_id, s.session_title)) return false
+      if (!searchQuery.trim()) return true
+      return (s.session_title || '').toLowerCase().includes(searchQuery.toLowerCase())
     })
-
-    const now = new Date()
-    const today: any[] = []
-    const yesterday: any[] = []
-    const lastWeek: any[] = []
-    const older: any[] = []
-
-    filtered.forEach((s) => {
-      const date = s.started_at ? new Date(s.started_at) : new Date()
-      const diffTime = Math.abs(now.getTime() - date.getTime())
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-      if (diffDays <= 1) today.push(s)
-      else if (diffDays === 2) yesterday.push(s)
-      else if (diffDays <= 7) lastWeek.push(s)
-      else older.push(s)
-    })
-
-    return { today, yesterday, lastWeek, older }
   }, [sessions, searchQuery])
 
   // 60FPS throttled auto-scroll without layout thrashing
@@ -740,51 +723,54 @@ export default function ChatPage() {
     return () => cancelAnimationFrame(raf)
   }, [extMessages, isStreaming])
 
-  const handleDeleteSession = (e?: React.MouseEvent, sId?: string) => {
+  const handleDeleteSession = useCallback((e?: React.MouseEvent, sId?: string) => {
     if (e) e.stopPropagation()
     const targetId = sId || activeSession?.id
     if (!targetId) return
     setConfirmDeleteSessionId(targetId)
-  }
+  }, [activeSession?.id])
 
-  const executeDeleteSession = async () => {
+  const executeDeleteSession = useCallback(async () => {
     const targetId = confirmDeleteSessionId
     if (!targetId) return
     setConfirmDeleteSessionId(null)
+
+    // 1. Instant optimistic UI deletion (0ms)
+    removeSession(targetId)
+    messagesCacheRef.current.delete(targetId)
+    if (activeSession?.id === targetId) {
+      setActiveSession(null)
+      setExtMessages([])
+      setMessages([])
+      const remaining = sessions.filter((s) => s.id !== targetId)
+      if (remaining.length > 0) {
+        navigate(`/chat/${remaining[0].id}`)
+      } else {
+        navigate('/chat')
+      }
+    }
+
+    // 2. Perform backend API deletion asynchronously
     try {
       await chatApi.deleteSession(targetId)
-      removeSession(targetId)
-      messagesCacheRef.current.delete(targetId)
-      if (activeSession?.id === targetId) {
-        setActiveSession(null)
-        setExtMessages([])
-        setMessages([])
-        const remaining = sessions.filter((s) => s.id !== targetId)
-        if (remaining.length > 0) {
-          navigate(`/chat/${remaining[0].id}`)
-        } else {
-          navigate('/chat')
-        }
-      }
       refetchSessions()
     } catch (err) {
       console.error('Failed to delete session:', err)
     }
-  }
+  }, [confirmDeleteSessionId, removeSession, activeSession?.id, sessions, setActiveSession, setMessages, navigate, refetchSessions])
 
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
     e.target.style.height = 'auto'
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`
-  }
+  }, [])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
-  }
+  }, [handleSend])
 
   const handleUploadDone = useCallback((docId: string, stats: any) => {
     if (processedUploadsRef.current.has(`done-${docId}`)) return
@@ -840,11 +826,24 @@ export default function ChatPage() {
     setActiveUploads((prev) => prev.filter((u) => u.docId !== docId))
   }, [])
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     const fileSizeMb = file.size / (1024 * 1024)
+    const tempDocId = `temp_${Date.now()}`
+
+    // 1. INSTANT 0ms Optimistic Uploading Card shown immediately
+    setActiveUploads((prev) => [
+      ...prev,
+      {
+        docId: tempDocId,
+        fileName: file.name,
+        sizeMb: fileSizeMb,
+        uploadPercent: 10,
+        isUploadingNetwork: true,
+      },
+    ])
     setUploadingFile(true)
 
     try {
@@ -859,15 +858,32 @@ export default function ChatPage() {
       }
 
       const topicId = targetSessionId || 'general'
-      const res = await documentsApi.upload(topicId, file, topicId)
+
+      // 2. Real-time Axios progress streaming
+      const res = await documentsApi.upload(
+        topicId,
+        file,
+        topicId,
+        (percent) => {
+          setActiveUploads((prev) =>
+            prev.map((u) =>
+              u.docId === tempDocId ? { ...u, uploadPercent: Math.max(10, percent) } : u
+            )
+          )
+        }
+      )
       const data = res.data
 
-      // Track aesthetic live progress card — do NOT post success message until indexing is done!
-      setActiveUploads((prev) => [
-        ...prev.filter((u) => u.docId !== data.id),
-        { docId: data.id, fileName: file.name, sizeMb: fileSizeMb },
-      ])
+      // 3. Switch to server DocID and start AI indexing stages
+      setActiveUploads((prev) =>
+        prev.map((u) =>
+          u.docId === tempDocId
+            ? { ...u, docId: data.id, isUploadingNetwork: false, uploadPercent: 100 }
+            : u
+        )
+      )
     } catch (err: any) {
+      setActiveUploads((prev) => prev.filter((u) => u.docId !== tempDocId))
       if (err.response?.status === 401) {
         logout()
         navigate('/login')
@@ -889,9 +905,7 @@ export default function ChatPage() {
       setUploadingFile(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-  }
-
-  const allMessages = extMessages
+  }, [sessionId, activeSession?.id, setActiveSession, refetchSessions, navigate, logout])
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-white overflow-hidden text-[#20201D] font-sans">
@@ -943,9 +957,7 @@ export default function ChatPage() {
           </button>
 
           <div className="space-y-1.5 max-h-[65vh] overflow-y-auto">
-            {sessions
-              .filter((s) => !isSubjectCurriculumTopic(s.topic_id, s.session_title))
-              .map((s) => {
+            {filteredSessions.map((s) => {
                 const isSelected = activeSession?.id === s.id || sessionId === s.id
                 return (
                   <div
@@ -1129,7 +1141,7 @@ export default function ChatPage() {
                   </div>
                 </div>
               </motion.div>
-            ) : allMessages.length === 0 ? (
+            ) : extMessages.length === 0 ? (
               <motion.div
                 key="hero-welcome-state"
                 initial={{ opacity: 0, y: 15 }}
@@ -1207,12 +1219,12 @@ export default function ChatPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      const topic = input.trim() || 'the central concept'
-                      handleSend(`Explain ${topic} using a simple, intuitive real-world analogy and visual mental model.`)
+                      const topic = input.trim() || 'this subject'
+                      handleSend(`Explain a core concept in ${topic} using a simple, relatable everyday analogy.`)
                     }}
                     disabled={isStreaming}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F7F7F7] hover:bg-[#D7FFB8] border border-[#E2E8F0] hover:border-[#58CC02]/40 text-[#3C3C3C] hover:text-[#58CC02] text-xs font-bold transition-all elevation-1 cursor-pointer active:scale-95 disabled:opacity-40"
-                    title="Explain with a simple real-world analogy"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F7F7F7] hover:bg-[#DDF4FF] border border-[#E2E8F0] hover:border-[#1CB0F6]/40 text-[#3C3C3C] hover:text-[#1CB0F6] text-xs font-bold transition-all elevation-1 cursor-pointer active:scale-95 disabled:opacity-40"
+                    title="Explain using simple everyday analogy"
                   >
                     <Lightbulb size={13} className="text-[#58CC02]" />
                     <span>{t.chat.simpleAnalogy}</span>
@@ -1284,15 +1296,8 @@ export default function ChatPage() {
 
                 <SuggestionCard
                   icon={<div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-200"><Trophy className="w-5 h-5" /></div>}
-                  title={uiLanguage === 'sv' ? 'Övnings-Quiz' : 'Practice Quiz'}
-                  description={uiLanguage === 'sv' ? 'Generera ett övnings-quiz med 5 flervalsfrågor från mitt kursmaterial.' : 'Generate a 5-question multiple choice practice quiz from my material.'}
-                  onClick={() => handleSend("Generate a 5-question multiple choice practice quiz from my material.")}
-                />
-
-                <SuggestionCard
-                  icon={<div className="w-10 h-10 rounded-[1.5rem] bg-[#D7FFB8] text-[#58CC02] flex items-center justify-center border border-[#58CC02]/20"><Brain className="w-5 h-5" /></div>}
-                  title={uiLanguage === 'sv' ? 'Begreppsförklaring' : 'Concept Explanation'}
-                  description={uiLanguage === 'sv' ? 'Förklara svåra ämnen steg-för-steg med enkla vardagsanalogier.' : 'Explain complex topics step-by-step with clear real-world examples.'}
+                  title={uiLanguage === 'sv' ? 'Djupförklara ett koncept' : 'Deep-Explain a Concept'}
+                  description={uiLanguage === 'sv' ? 'Förklara kvantmekanik eller valfritt kapitel steg-för-steg med tydliga exempel från verkligheten.' : 'Explain quantum mechanics or any chapter step-by-step with clear real-world examples.'}
                   onClick={() => handleSend("Explain quantum mechanics step-by-step with clear real-world examples.")}
                 />
 
@@ -1329,7 +1334,7 @@ export default function ChatPage() {
 
         {/* Input Bar (Sticky at bottom when chat messages exist and full page is loaded) */}
         <AnimatePresence>
-          {!loadingMessages && allMessages.length > 0 && (
+          {!loadingMessages && extMessages.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1537,47 +1542,6 @@ export default function ChatPage() {
 
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
-
-function SessionItem({ session, activeId, onSelect, onDelete }: {
-  session: any;
-  activeId?: string;
-  onSelect: () => void;
-  onDelete: (e: React.MouseEvent) => void;
-}) {
-  const isActive = activeId === session.id
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect()
-        }
-      }}
-      className={`group w-full flex items-center justify-between px-3 py-2.5 rounded-[1.25rem] transition-all cursor-pointer ${isActive
-        ? 'bg-[#DDF4FF] text-[#1CB0F6] font-extrabold elevation-1 border border-[#1CB0F6]/30'
-        : 'text-[#777777] hover:bg-[#E5E5E5] hover:text-[#3C3C3C] font-medium'
-        }`}
-    >
-      <div className="flex items-center gap-2.5 min-w-0 pr-1">
-        <MessageSquare size={15} className={isActive ? 'text-[#1CB0F6]' : 'text-[#AFAFAF]'} />
-        <span className="truncate text-xs">{session.session_title}</span>
-      </div>
-      <button
-        aria-label="Delete session"
-        onClick={onDelete}
-        className={`opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all ${isActive ? 'text-[#1CB0F6] hover:text-[#FF4B4B] hover:bg-[#DDF4FF]' : 'text-[#AFAFAF] hover:text-[#FF4B4B] hover:bg-[#FFD1D1]'
-          }`}
-        title="Delete session"
-      >
-        <Trash2 size={14} />
-      </button>
-    </div>
-  )
-}
 
 function SuggestionCard({ icon, title, description, onClick }: {
   icon: React.ReactNode;

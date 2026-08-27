@@ -14,7 +14,8 @@ from __future__ import annotations
 import math
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+import time
+from typing import Dict, List, Optional, Tuple, Any
 
 from app.core.config import get_settings
 
@@ -106,6 +107,7 @@ class PineconeVectorStore:
         self._indexes: Dict[str, Any] = {}
         self._bm25_caches: Dict[str, _BM25Index] = {}
         self._doc_caches: Dict[str, List[Dict]] = {}
+        self._count_caches: Dict[str, Tuple[int, float]] = {}
 
     def _get_client(self):
         if self._client is None:
@@ -368,7 +370,7 @@ class PineconeVectorStore:
             return self.search(topic_id, query_embedding, top_k, min_score=min_score)
 
         top_k = top_k or settings.TOP_K_RETRIEVAL
-        retrieval_k = min(top_k * 2, 20)
+        retrieval_k = min(top_k + 2, 8)
 
         dense_chunks = self.search(topic_id, query_embedding, top_k=retrieval_k, min_score=0.0)
         sparse_chunks = self.search_bm25(topic_id, query_text, top_k=retrieval_k)
@@ -491,7 +493,13 @@ class PineconeVectorStore:
         return all_matches
 
     def count(self, topic_id: str) -> int:
-        """Get vector count in topic namespace across textbook and chat indexes."""
+        """Get vector count in topic namespace across textbook and chat indexes with 120s in-memory TTL caching."""
+        now = time.time()
+        cached = self._count_caches.get(topic_id)
+        if cached is not None and (now - cached[1]) < 120:
+            return cached[0]
+
+        val = 0
         try:
             index = self._get_index(topic_id)
             namespace = self._sanitize_namespace(topic_id)
@@ -502,10 +510,11 @@ class PineconeVectorStore:
             for candidate in [namespace, namespace.replace("_", "-"), namespace.replace("-", "_")]:
                 if isinstance(ns_dict, dict) and candidate in ns_dict:
                     ns_stat = ns_dict[candidate]
-                    return getattr(ns_stat, "vector_count", 0) or (ns_stat.get("vector_count", 0) if isinstance(ns_stat, dict) else 0)
+                    val = getattr(ns_stat, "vector_count", 0) or (ns_stat.get("vector_count", 0) if isinstance(ns_stat, dict) else 0)
+                    break
 
             # If sec_ was not in chat index, check textbook index
-            if topic_id.startswith("sec_"):
+            if val == 0 and topic_id.startswith("sec_"):
                 parts = topic_id.split("_", 2)
                 if len(parts) >= 3:
                     raw_topic = parts[2]
@@ -515,11 +524,16 @@ class PineconeVectorStore:
                     for candidate in [raw_topic, raw_topic.replace("_", "-"), raw_topic.replace("-", "_")]:
                         if isinstance(tb_dict, dict) and candidate in tb_dict:
                             tb_stat = tb_dict[candidate]
-                            return getattr(tb_stat, "vector_count", 0) or (tb_stat.get("vector_count", 0) if isinstance(tb_stat, dict) else 0)
+                            val = getattr(tb_stat, "vector_count", 0) or (tb_stat.get("vector_count", 0) if isinstance(tb_stat, dict) else 0)
+                            break
 
-            return len(self._doc_caches.get(namespace, []))
+            if val == 0:
+                val = len(self._doc_caches.get(self._sanitize_namespace(topic_id), []))
         except Exception:
-            return len(self._doc_caches.get(self._sanitize_namespace(topic_id), []))
+            val = len(self._doc_caches.get(self._sanitize_namespace(topic_id), []))
+
+        self._count_caches[topic_id] = (val, now)
+        return val
 
     def get_all_chunks(self, topic_id: str, limit: int = 15) -> List[Dict]:
         """Fetch cached or retrieved chunks for a topic namespace."""
@@ -540,6 +554,7 @@ class PineconeVectorStore:
             print(f"[PINECONE] Delete namespace error: {e}")
         self._doc_caches.pop(namespace, None)
         self._bm25_caches.pop(namespace, None)
+        self._count_caches.pop(topic_id, None)
 
     def delete_collection(self, collection_name: str) -> None:
         self.delete_topic(collection_name)

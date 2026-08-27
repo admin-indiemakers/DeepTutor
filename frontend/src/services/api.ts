@@ -303,13 +303,19 @@ export const dashboardApi = {
 
 // ─── Documents ────────────────────────────────────────────────
 export const documentsApi = {
-  upload: (topicId: string, file: File, sectionId?: string) => {
+  upload: (topicId: string, file: File, sectionId?: string, onProgress?: (percent: number) => void) => {
     const form = new FormData()
     form.append('file', file)
     form.append('topic_id', topicId)
     if (sectionId) form.append('section_id', sectionId)
     return api.post('/documents/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          onProgress(percent)
+        }
+      },
     })
   },
   list: (topicId?: string) =>

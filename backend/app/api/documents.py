@@ -95,7 +95,8 @@ async def upload_document(
         f.write(content)
 
     # Register in DB using the section identifier as the document topic/section key
-    doc = db.create_document(
+    doc = await asyncio.to_thread(
+        db.create_document,
         user_id=user["id"],
         topic_id=section_id,
         file_name=file.filename,
@@ -103,13 +104,13 @@ async def upload_document(
         file_type=ext.lstrip("."),
     )
 
+    # Clear any stale flashcards for this section in background
+    background_tasks.add_task(db.delete_flashcards_for_topic, section_id)
+
     # Upload to AWS S3 Cloud Storage
     s3_key = f"documents/{user['id']}/{section_id}/{file.filename}"
     if s3_store.is_configured():
         background_tasks.add_task(s3_store.upload_file, file_path, s3_key, file.content_type)
-
-    # Clear any stale flashcards for this same section so generated cards stay aligned with the latest PDF.
-    db.delete_flashcards_for_topic(section_id)
 
     # Start background indexing — pass user_id and section id for per-user section namespacing
     background_tasks.add_task(_run_indexing, doc["id"], section_id, file_path, user["id"])

@@ -71,7 +71,26 @@ interface SimEdge {
   description: string
 }
 
-function GraphContextPanel({ entities, relationships, isOpen, onClose, onAskTutor }: Props) {
+/* ─── Cross-browser safe rounded rect helper ───────────────────── */
+function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  if (typeof (ctx as any).roundRect === 'function') {
+    (ctx as any).roundRect(x, y, w, h, r)
+  } else {
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.lineTo(x + w - r, y)
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+    ctx.lineTo(x + w, y + h - r)
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+    ctx.lineTo(x + r, y + h)
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+    ctx.lineTo(x, y + r)
+    ctx.quadraticCurveTo(x, y, x + r, y)
+    ctx.closePath()
+  }
+}
+
+function GraphContextPanel({ entities = [], relationships = [], isOpen = false, onClose, onAskTutor }: Props) {
   const { uiLanguage } = useLanguageStore()
   const t = useTranslation(uiLanguage)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -462,7 +481,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose, onAskTuto
 
         ctx.fillStyle = darkMode ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.94)'
         ctx.beginPath()
-        ctx.roundRect(mx - tw / 2 - 5, my - 8, tw + 10, 16, 4)
+        drawRoundRect(ctx, mx - tw / 2 - 5, my - 8, tw + 10, 16, 4)
         ctx.fill()
         ctx.strokeStyle = isHighlighted
           ? '#6366f1'
@@ -539,7 +558,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose, onAskTuto
         const ry = textY - py - 8
         const rw = tw + px * 2
         const rh = 16 + py
-        ctx.roundRect(rx, ry, rw, rh, 6)
+        drawRoundRect(ctx, rx, ry, rw, rh, 6)
         ctx.fill()
 
         ctx.strokeStyle = isSelected
@@ -742,8 +761,6 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose, onAskTuto
     setSelectedTypeFilter(null)
   }, [])
 
-  if (!isOpen) return null
-
   // Connected Nodes for Inspection Drawer
   const selectedNodeConnections = selectedNode
     ? edgesRef.current
@@ -761,12 +778,13 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose, onAskTuto
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-2 sm:p-4 md:p-6"
-      >
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-2 sm:p-4 md:p-6"
+        >
         <motion.div
           initial={{ scale: 0.96, opacity: 0, y: 15 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -1153,6 +1171,7 @@ function GraphContextPanel({ entities, relationships, isOpen, onClose, onAskTuto
           </div>
         </motion.div>
       </motion.div>
+      )}
     </AnimatePresence>
   )
 }

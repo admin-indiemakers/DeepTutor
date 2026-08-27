@@ -283,11 +283,8 @@ def get_or_create_topic_session(user_id: str, topic_id: str, title: str = "New C
 def delete_session(session_id: str) -> bool:
     with DBContext() as db:
         db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete(synchronize_session=False)
-        s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-        if s:
-            db.delete(s)
-            return True
-    return False
+        count = db.query(ChatSession).filter(ChatSession.id == session_id).delete(synchronize_session=False)
+        return count > 0
 
 
 # ─── Message helpers ───────────────────────────────────────────────────────────

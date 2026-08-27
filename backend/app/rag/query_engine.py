@@ -59,8 +59,61 @@ STOPWORDS = {
 }
 
 
+ACRONYM_MAP: Dict[str, List[str]] = {
+    "svm": ["support vector machine", "support vector machines"],
+    "knn": ["k nearest neighbors", "k-nearest neighbors", "k nearest neighbor"],
+    "pca": ["principal component analysis"],
+    "rf": ["random forest", "random forests"],
+    "dt": ["decision tree", "decision trees"],
+    "lr": ["logistic regression", "linear regression"],
+    "nb": ["naive bayes", "naïve bayes"],
+    "cnn": ["convolutional neural network", "convolutional neural networks"],
+    "rnn": ["recurrent neural network", "recurrent neural networks"],
+    "lstm": ["long short term memory", "long short-term memory"],
+    "gru": ["gated recurrent unit", "gated recurrent units"],
+    "bert": ["bidirectional encoder representations from transformers"],
+    "gpt": ["generative pretrained transformer", "generative pre-trained transformer"],
+    "llm": ["large language model", "large language models"],
+    "nlp": ["natural language processing"],
+    "cv": ["computer vision", "cross validation"],
+    "ai": ["artificial intelligence"],
+    "ml": ["machine learning"],
+    "dl": ["deep learning"],
+    "ann": ["artificial neural network", "artificial neural networks"],
+    "rl": ["reinforcement learning"],
+    "gan": ["generative adversarial network", "generative adversarial networks"],
+    "sgd": ["stochastic gradient descent"],
+    "adam": ["adaptive moment estimation"],
+    "dbscan": ["density based spatial clustering", "density-based spatial clustering"],
+    "auc": ["area under curve"],
+    "roc": ["receiver operating characteristic"],
+    "rag": ["retrieval augmented generation", "retrieval-augmented generation"],
+    "scert": ["state council of educational research and training"],
+    "cbse": ["central board of secondary education"],
+    "ncert": ["national council of educational research and training"],
+    "dna": ["deoxyribonucleic acid"],
+    "rna": ["ribonucleic acid"],
+    "atp": ["adenosine triphosphate"],
+    "adp": ["adenosine diphosphate"],
+    "emf": ["electromotive force"],
+    "ac": ["alternating current"],
+    "dc": ["direct current"],
+    "led": ["light emitting diode"],
+    "laser": ["light amplification by stimulated emission of radiation"],
+}
+
+
 def _tokenize_simple(text: str) -> List[str]:
-    return [t.lower() for t in re.findall(r'\b[a-zA-Z0-9_-]+\b', text) if len(t) > 2 and t.lower() not in STOPWORDS]
+    raw_tokens = [t.lower() for t in re.findall(r'\b[a-zA-Z0-9_-]+\b', text) if len(t) > 1 and t.lower() not in STOPWORDS]
+    expanded = list(raw_tokens)
+    for t in raw_tokens:
+        if t in ACRONYM_MAP:
+            for phrase in ACRONYM_MAP[t]:
+                for word in phrase.split():
+                    w_clean = word.lower()
+                    if w_clean not in STOPWORDS and w_clean not in expanded:
+                        expanded.append(w_clean)
+    return expanded
 
 
 def is_document_level_meta_query(query: str) -> bool:
@@ -119,8 +172,41 @@ JSON Array:"""
 
     async def expand(self, query: str) -> List[str]:
         """Returns [query, variant_1, variant_2, ...] (original always first)."""
+        rule_variants: List[str] = []
+        q_lower = query.lower()
+
+        # 1. Expand all acronyms simultaneously
+        expanded_all = query
+        for w, full_names in ACRONYM_MAP.items():
+            if re.search(rf'\b{w}\b', expanded_all, flags=re.IGNORECASE):
+                expanded_all = re.sub(rf'\b{w}\b', full_names[0], expanded_all, flags=re.IGNORECASE)
+        if expanded_all.lower() != q_lower and expanded_all not in rule_variants:
+            rule_variants.append(expanded_all)
+
+        # 2. Decompose comparative queries (e.g., "difference between X and Y", "X vs Y", "compare X and Y")
+        comp_match = re.search(r'\b(?:differ[ae]nce\s+between|compare|contrast|versus|\bvs\.?\b)\s+([a-zA-Z0-9_\s\-]+?)\s+(?:and|\bvs\.?\b|with|to)\s+([a-zA-Z0-9_\s\-]+)', q_lower)
+        if comp_match:
+            concept_a = comp_match.group(1).strip()
+            concept_b = comp_match.group(2).strip()
+            if concept_a:
+                exp_a = ACRONYM_MAP.get(concept_a, [concept_a])[0]
+                rule_variants.append(f"{concept_a} {exp_a}".strip())
+            if concept_b:
+                exp_b = ACRONYM_MAP.get(concept_b, [concept_b])[0]
+                rule_variants.append(f"{concept_b} {exp_b}".strip())
+        else:
+            # Check individual acronym terms present in the query
+            q_words = re.findall(r'\b[a-zA-Z0-9_-]+\b', q_lower)
+            for w in q_words:
+                if w in ACRONYM_MAP:
+                    for full_name in ACRONYM_MAP[w]:
+                        sub_q = f"{w} {full_name}"
+                        if sub_q not in rule_variants:
+                            rule_variants.append(sub_q)
+
         if not settings.ENABLE_QUERY_EXPANSION:
-            return [query]
+            all_queries = [query] + rule_variants
+            return all_queries[:self.n_variants + 3]
 
         prompt = self.EXPAND_PROMPT.format(n=self.n_variants, query=query)
         try:
@@ -135,9 +221,9 @@ JSON Array:"""
         except Exception:
             variants = []
 
-        # Always include original first, then variants
-        all_queries = [query] + [v for v in variants if v.lower() != query.lower()]
-        return all_queries[:self.n_variants + 1]
+        # Always include original first, then rule-based acronym expansions, then LLM variants
+        all_queries = [query] + rule_variants + [v for v in variants if v.lower() != query.lower()]
+        return all_queries[:self.n_variants + 4]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -362,18 +448,16 @@ class ConfidenceScorer:
         else:
             kw_coverage = 0.5
 
-        # Strictly flag as OUT_OF_SCOPE if no keywords match and no graph entities exist
-        if query_tokens and kw_coverage == 0.0 and len(graph_entities) == 0:
-            # Dense embedding baseline noise is typically 0.35-0.55. Without any keyword or graph anchor, it is out of scope.
-            if max_score < 0.65 or len(query_tokens) <= 3:
-                return 0.05, "out_of_scope"
+        # Flag as OUT_OF_SCOPE only when there is genuinely zero semantic relevance (max_score < 0.35), zero keyword overlap, and zero graph entities
+        if query_tokens and kw_coverage == 0.0 and len(graph_entities) == 0 and max_score < 0.38:
+            return 0.05, "out_of_scope"
 
-        # If very weak keyword overlap (<15%), no graph entities, and low semantic score (<0.48)
-        if query_tokens and kw_coverage < 0.15 and len(graph_entities) == 0 and max_score < 0.48:
+        # If very weak keyword overlap (<10%), no graph entities, and low semantic score (<0.30)
+        if query_tokens and kw_coverage < 0.10 and len(graph_entities) == 0 and max_score < 0.30:
             return 0.10, "out_of_scope"
 
         # Combined confidence
-        confidence = (0.45 * max_score + 0.25 * avg_score + 0.20 * kw_coverage + graph_bonus)
+        confidence = (0.50 * max_score + 0.25 * avg_score + 0.15 * kw_coverage + graph_bonus)
         confidence = round(min(1.0, max(0.0, confidence)), 4)
 
         if confidence >= self.THRESHOLDS["high"]:

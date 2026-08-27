@@ -102,70 +102,63 @@ async def get_messages(session_id: str, user: dict = Depends(get_current_user)):
 @router.delete("/sessions/{session_id}")
 async def delete_session(session_id: str, user: dict = Depends(get_current_user)):
     user_id = user["id"]
-    session = db.get_session(session_id)
-    if not session:
-        # Also clean up any possible leftover session id data
-        db.delete_session(session_id)
-        db.delete_section_all_data(user_id=user_id, topic_id=session_id)
-        return {"ok": True, "session_id": session_id}
 
-    topic_id = session.get("topic_id") or ""
+    # 1. Instantly delete the chat session & messages record in DB (<50ms)
+    await asyncio.to_thread(db.delete_session, session_id)
 
-    # 1. Delete SQL database records for this session & its topic
-    db.delete_session(session_id)
-    del_result = db.delete_section_all_data(user_id=user_id, topic_id=session_id)
-    if topic_id and topic_id != "general" and topic_id != session_id:
-        db.delete_section_all_data(user_id=user_id, topic_id=topic_id)
+    # 2. Asynchronously clean up cascading section data and external cloud resources in background
+    async def _async_cleanup_resources():
+        try:
+            del_result = await asyncio.to_thread(db.delete_section_all_data, user_id=user_id, topic_id=session_id)
 
-    # 2. Clean up uploaded physical files & AWS S3
-    deleted_docs = del_result.get("deleted_docs", [])
-    for doc in deleted_docs:
-        file_path = doc.get("file_path")
-        if file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception:
-                pass
+            # Clean up uploaded physical files & AWS S3
+            deleted_docs = del_result.get("deleted_docs", []) if isinstance(del_result, dict) else []
+            for doc in deleted_docs:
+                file_path = doc.get("file_path")
+                if file_path and os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
 
-        if s3_store.is_configured() and doc.get("file_name"):
-            s3_key = f"documents/{user_id}/{doc.get('topic_id', session_id)}/{doc.get('file_name')}"
-            s3_store.delete_file(s3_key)
+                if s3_store.is_configured() and doc.get("file_name"):
+                    s3_key = f"documents/{user_id}/{doc.get('topic_id', session_id)}/{doc.get('file_name')}"
+                    try:
+                        s3_store.delete_file(s3_key)
+                    except Exception:
+                        pass
 
-    for tid in [session_id, topic_id]:
-        if not tid or tid == "general":
-            continue
-        for base_p in [
-            Path(settings.UPLOAD_DIR) / user_id / tid,
-            Path(settings.UPLOAD_DIR) / tid,
-        ]:
-            if base_p.exists():
+            for base_p in [
+                Path(settings.UPLOAD_DIR) / user_id / session_id,
+                Path(settings.UPLOAD_DIR) / session_id,
+            ]:
+                if base_p.exists():
+                    try:
+                        shutil.rmtree(base_p, ignore_errors=True)
+                    except Exception:
+                        pass
+
+            # Clean up Pinecone namespaces, JSON-KV graph, ChromaDB, caches
+            namespaced_topic = _user_section_collection_id(user_id, session_id, session_id=session_id)
+            for t in [namespaced_topic, session_id]:
                 try:
-                    shutil.rmtree(base_p, ignore_errors=True)
+                    active_vector_store.delete_collection(t)
+                    vector_store.delete_collection(t)
                 except Exception:
                     pass
+                try:
+                    active_graph_store.delete_graph(t)
+                    graph_store.delete_graph(t)
+                except Exception:
+                    pass
+                try:
+                    await query_result_cache.invalidate(t)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[CLEANUP ERROR] Background session deletion cleanup: {e}")
 
-    # 3. Clean up FAISS, JSON-KV, ChromaDB, NetworkX
-    target_ids = [session_id]
-    if topic_id and topic_id != "general" and topic_id != session_id:
-        target_ids.append(topic_id)
-
-    for tid in target_ids:
-        namespaced_topic = _user_section_collection_id(user_id, tid, session_id=session_id)
-        for t in [namespaced_topic, tid]:
-            try:
-                active_vector_store.delete_collection(t)
-                vector_store.delete_collection(t)
-            except Exception:
-                pass
-            try:
-                active_graph_store.delete_graph(t)
-                graph_store.delete_graph(t)
-            except Exception:
-                pass
-            try:
-                await query_result_cache.invalidate(t)
-            except Exception:
-                pass
+    asyncio.create_task(_async_cleanup_resources())
 
     return {"ok": True, "session_id": session_id}
 

@@ -133,7 +133,8 @@ class GeminiClient:
         payload["generationConfig"] = {
             "temperature": temperature,
             "maxOutputTokens": 8192,
-            "topP": 0.95,
+            "topP": 0.90,
+            "topK": 40,
         }
         if options and "temperature" in options:
             payload["generationConfig"]["temperature"] = options["temperature"]
@@ -186,8 +187,9 @@ class GeminiClient:
 
         payload["generationConfig"] = {
             "temperature": temperature,
-            "maxOutputTokens": 4096,
-            "topP": 0.95,
+            "maxOutputTokens": 8192,
+            "topP": 0.90,
+            "topK": 40,
         }
         if options and "temperature" in options:
             payload["generationConfig"]["temperature"] = options["temperature"]

@@ -107,9 +107,9 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP_WORDS: int = 50           # overlap in words for new chunker
     MIN_CHUNK_CHARS: int = 80               # discard chunks smaller than this
 
-    # ── Stage 4: Retrieval & Hybrid Search (Optimized for <10s response) ────
-    TOP_K_RETRIEVAL: int = 8                # candidates fetched before reranking
-    TOP_K_CHUNKS: int = 4                   # final chunks sent to LLM for comprehensive context
+    # ── Stage 4: Retrieval & Hybrid Search (Optimized for <3s response) ────
+    TOP_K_RETRIEVAL: int = 6                # candidates fetched before reranking
+    TOP_K_CHUNKS: int = 3                   # final high-relevance chunks sent to LLM
     MIN_CHUNK_SCORE: float = 0.15           # similarity threshold (tolerant of typos)
     DENSE_WEIGHT: float = 0.70             # dense vector weight in RRF fusion
     SPARSE_WEIGHT: float = 0.30            # BM25 weight in RRF fusion
