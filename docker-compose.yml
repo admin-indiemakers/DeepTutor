@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: deeptutor-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - LLM_PROVIDER=gemini
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_CHAT_MODEL=${GEMINI_CHAT_MODEL:-gemini-2.0-flash}
+      - EMBEDDING_PROVIDER=gemini
+      - GEMINI_EMBED_MODEL=${GEMINI_EMBED_MODEL:-models/text-embedding-004}
+      - VECTOR_STORE_BACKEND=pinecone
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-textbook}
+      - PINECONE_TEXTBOOK_INDEX=${PINECONE_TEXTBOOK_INDEX:-textbook}
+      - PINECONE_CHAT_INDEX=${PINECONE_CHAT_INDEX:-deeptutor}
+      - GRAPH_STORE_BACKEND=json_kv
+      - DATABASE_URL=sqlite+aiosqlite:///./data/deep_tutor.db
+      - SECRET_KEY=${SECRET_KEY:-deep-tutor-super-secret-key-change-in-production}
+      - UPLOAD_DIR=./uploads
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - SERPER_API_KEY=${SERPER_API_KEY}
+    volumes:
+      - backend_data:/app/data
+      - backend_uploads:/app/uploads
+      - backend_vlm_cache:/app/vlm_cache
+      - backend_graph_data:/app/graph_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    container_name: deeptutor-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  backend_data:
+  backend_uploads:
+  backend_vlm_cache:
+  backend_graph_data:

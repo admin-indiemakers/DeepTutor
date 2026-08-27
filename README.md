@@ -1,50 +1,46 @@
-# 🎓 Indie-Tutor — Next-Gen AI GraphRAG Learning Platform
+# 🎓 DeepTutor — Multimodal AI GraphRAG Learning Platform
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0.0-61DAFB.svg?style=flat&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6.svg?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![NVIDIA CUDA](https://img.shields.io/badge/NVIDIA_CUDA-12.4-76B900.svg?style=flat&logo=nvidia)](https://developer.nvidia.com/cuda-toolkit)
-[![IBM Docling](https://img.shields.io/badge/IBM_Docling-CUDA_GPU-052FAD.svg?style=flat)](https://github.com/DS4SD/docling)
-[![Ollama](https://img.shields.io/badge/Ollama-llama3.2-000000.svg?style=flat)](https://ollama.ai/)
-[![Netlify Ready](https://img.shields.io/badge/Netlify-Deployed-00C7B7.svg?style=flat&logo=netlify)](https://www.netlify.com/)
+[![Google Gemini](https://img.shields.io/badge/Google_Gemini-2.0_Flash-4285F4.svg?style=flat&logo=google)](https://aistudio.google.com/)
+[![Pinecone](https://img.shields.io/badge/Pinecone-Serverless-000000.svg?style=flat)](https://www.pinecone.io/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?style=flat&logo=docker)](https://www.docker.com/)
 
-**Indie-Tutor** is a state-of-the-art, privacy-focused AI learning and tutoring platform powered by a hybrid **GraphRAG architecture** (Dense Vector Search + Sparse BM25 + Knowledge Graph Subgraphs), high-speed **IBM Docling & PyPDFium2 document parsing**, **NVIDIA CUDA GPU acceleration**, and interactive study tools (AI Quizzes, 3D Flashcards, Study Roadmaps, and Graph Visualizers).
+**DeepTutor** is a state-of-the-art, multimodal AI tutoring and learning platform. Powered by **Hybrid GraphRAG** (Dense 3072-dim Vector Search + Sparse BM25 + Knowledge Graph Subgraphs), **Google Gemini 2.0/2.5 Flash VLM** (Vision-Language Model) for high-fidelity diagram, table, and LaTeX extraction, **Pinecone Cloud Vector Store**, and an interactive suite of study tools (3D Knowledge Graph, AI Quizzes, Smart Flashcards, Day-by-Day Exam Roadmaps, and 5-Minute Cheatcodes).
+
+---
+
+## 🚀 Cloud Deployment Guide
+
+👉 **For complete cloud deployment instructions (Render, Railway, Docker, AWS EC2, Vercel), see [CLOUD_DEPLOYMENT.md](file:///c:/Users/lenovo/Desktop/ASIMOVX/DeepTutor/CLOUD_DEPLOYMENT.md).**
 
 ---
 
 ## 🌟 Key Features
 
-### 🧠 1. Hybrid GraphRAG AI Tutor
-- **Multi-Vector Dense Search**: Local ChromaDB instance with `nomic-embed-text` embeddings.
-- **Sparse BM25 Keyword Search**: Ensures domain-specific acronyms (`SVM`, `KNN`, `RF`, `RLHF`) and math symbols are matched precisely.
-- **Reciprocal Rank Fusion (RRF)**: Normalizes dense and sparse scores into confidence ranges ($0.0 - 1.0$).
-- **Strict Metadata Page Filtering**: Guarantees $100\%$ precision when querying specific document pages (`e.g., "What is discussed on page 42?"`).
+### 🧠 1. Multimodal Hybrid GraphRAG AI Tutor
+- **3072-Dimension Dense Vector Retrieval**: Uses Google Gemini `models/text-embedding-004` indexed into Pinecone Serverless vector database.
+- **Sparse BM25 + Acronym Expansion**: Resolves 35+ technical and curriculum abbreviations (`SVM`, `KNN`, `PCA`, `CNN`, `RNN`, `BERT`, `DNA`, `SCERT`) automatically.
+- **Comparative Query Decomposition**: Decomposes multi-concept comparison questions (`"difference between KNN and SVM"`) into dual concept searches with structured side-by-side comparison tables.
+- **Sub-Second Streaming (SSE)**: Real-time token streaming with citation badges, confidence scores, and visual source cards.
 
-### 📑 2. Universal Multi-Format Document Ingestion & CUDA OCR
-- **Supported Formats**: `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`, `.docx`, `.doc`, `.csv`, `.xlsx`, `.xls`, `.pptx`, `.ppt`, `.html`, `.json`, `.txt`, `.md`.
-- **Sub-Second Fast Parsing Priority**: Uses native `pypdfium2` C++ engine for **0.20-second PDF extraction speed** with zero memory crashes.
-- **IBM Docling CUDA Acceleration**: Delegates layout models and table vision extractions to **NVIDIA GPU VRAM** (`NVIDIA GeForce RTX 3050 GPU`).
+### 👁️ 2. Vision-Language Model (VLM) Textbook Ingestion
+- **Complete Diagram & Schematic Understanding**: Transcribes ray optics, circuit schematics, biological diagrams, and charts into structured pedagogical descriptions.
+- **LaTeX Math & Chemical Equations**: Extracted natively into standard LaTeX (`$...$` for inline, `$$...$$` for block displays).
+- **Automated Table Extraction**: Converts complex textbook tables into structured Markdown tables.
+- **Pre-Indexed SSLC Textbooks**: Includes Physics, Chemistry, and Mathematics Class 10 full curriculum.
 
-### 📊 3. Interactive Knowledge Graph Visualizer
-- **2D Canvas Force Graph**: Built with `d3-force` rendering entities, relationships, subgraphs, and concept clusters.
-- **Interactive Inspection**: Click nodes to inspect connections, view context snippets, and generate targeted study material.
+### 🌐 3. Interactive 3D Knowledge Graph
+- **Force-Directed Visual Canvas**: Explores document concept nodes and semantic relationships in real time.
+- **Smart Directive Sanitizer**: Strips question boilerplate (`"Explain:"`, `"Write a note on:"`, `"Give reasons"`) to surface only high-yield academic concepts.
+- **Cross-Concept Traversal**: Click any node to view definitions, related entities, and study context.
 
-### 🎮 4. AI Quiz & Micro-Learning Engine
-- **Custom Topic Scope**: Generate quizzes on the entire document or focused sub-topics.
-- **Noise-Filtered Chips**: Automatically strips publisher metadata (`CPP`, `IEEE`, `ROC`, `TC`) and maps technical acronyms to expanded forms (`Support Vector Machines (SVM)`).
-- **Gamified Streaks**: Includes difficulty selection, answer explanations, streak multipliers, and instant score summaries.
-
-### 🎴 5. Smart 3D Flippable Flashcards
-- **Interactive UI**: 3D card flips, keyboard navigation (`Space`, `Arrow` keys), and deck management.
-- **Audio Text-to-Speech (TTS)**: Built-in voice pronunciation for definitions and study terms.
-
-### 📅 6. AI Day-by-Day Study Plan Roadmap Engine
-- **Automated Schedule Calculation**: Calculates days remaining to exam date and constructs structured day-by-day study plans.
-- **Interactive Checklists**: Check off completed topics, view progress analytics, and adjust schedules dynamically.
-
-### 🧪 7. Industrial RAG Evaluation Suite
-- **Integrated Frameworks**: Evaluates performance using **DeepEval** (`deepeval` v4.1.5) and **Ragas** (`ragas` v0.4.3).
-- **Core Metrics Tracked**: Context Precision (@5), Context Hit Rate ($100\%$ on document topics), MRR ($0.583$), Faithfulness %, P50/P95 Latency, and LLM TPS.
+### 🎮 4. Gamified AI Study Tools
+- **⚡ 5-Minute Cheatcodes**: Instant 6-section structured revision sheets with simple analogies and key formulas.
+- **🏆 Gamified Quizzes**: AI-generated multiple-choice questions with XP scoring, instant feedback, and streak multipliers.
+- **🎴 Smart 3D Flashcards**: Flippable study decks with keyboard shortcuts and built-in Text-to-Speech (TTS) pronunciation.
+- **📅 AI Day-by-Day Exam Roadmaps**: Dynamic exam countdown schedules with interactive topic checklists.
 
 ---
 
@@ -52,130 +48,103 @@
 
 ```mermaid
 flowchart TD
-    User([User / Browser]) <--> Frontend[React 19 + Vite + TailwindCSS]
+    User([Student / Browser]) <--> Frontend[React 19 + Vite + TailwindCSS]
     Frontend <--> API[FastAPI Backend Server]
     
     subgraph Document Ingestion Pipeline
-        Upload[Multi-Format Uploads] --> Router{File Type Router}
-        Router -->|PDF / Image| FastParser[pypdfium2 / Docling CUDA OCR]
-        Router -->|Word / Excel| DocxParser[python-docx / openpyxl]
-        Router -->|Slides / CSV| PptxParser[python-pptx / pandas]
-        FastParser & DocxParser & PptxParser --> Chunker[Semantic Chunker]
+        Upload[Multi-Format Uploads / Textbooks] --> VLM[Gemini 2.5 Flash VLM]
+        VLM --> Parser[Markdown & LaTeX Parser]
+        Parser --> Chunker[Semantic Chunker]
+        Chunker --> Embedder[Gemini Embeddings 3072-dim]
     end
     
-    subgraph GraphRAG Engine
-        Chunker --> Chroma[(ChromaDB Vector Store)]
-        Chunker --> GraphStore[(NetworkX Knowledge Graph)]
-        
-        API --> QueryEngine[Query Engine]
+    subgraph Storage & Cloud Layer
+        Embedder --> Pinecone[(Pinecone Vector DB)]
+        Parser --> GraphStore[(JSON-KV Knowledge Graph)]
+        Upload --> S3[(AWS S3 Document Storage)]
+        API <--> DB[(SQLite / PostgreSQL)]
+    end
+    
+    subgraph Hybrid Retrieval Engine
+        API --> QueryEngine[Hybrid Query Engine]
         QueryEngine --> Dense[Dense Vector Search]
-        QueryEngine --> Sparse[Sparse BM25 Search]
-        Dense & Sparse --> RRF[RRF Score Normalization]
-        RRF --> GraphExpand[Graph Subgraph Context]
-        GraphExpand --> Ollama[Local Ollama LLM llama3.2]
+        QueryEngine --> BM25[BM25 Keyword Search]
+        Dense & BM25 --> Fusion[RRF Rank Fusion]
+        Fusion --> GraphExpand[Graph Entity Expansion]
+        GraphExpand --> GeminiLLM[Google Gemini 2.0 Flash LLM]
     end
     
-    Ollama --> API
+    GeminiLLM --> API
 ```
 
 ---
 
 ## 🛠️ Technology Stack
 
-| Layer | Technology Used |
+| Layer | Technology |
 | :--- | :--- |
-| **Frontend Framework** | React 19, TypeScript, Vite, TailwindCSS, Framer Motion |
-| **Data Visualization** | Recharts, Canvas 2D Force-Directed Graph |
-| **Backend Framework** | FastAPI, Python 3.13, Uvicorn, Pydantic v2 |
-| **Vector Database** | ChromaDB (`nomic-embed-text`) |
-| **Knowledge Graph** | NetworkX (Entity & Relationship Subgraphs) |
-| **Document Parsers** | IBM Docling, PyPDFium2, pdfplumber, python-docx, openpyxl, python-pptx |
-| **GPU Acceleration** | PyTorch 2.6.0+cu124 (NVIDIA CUDA 12.4) |
-| **Evaluation Suite** | DeepEval v4.1.5, Ragas v0.4.3 |
-| **Deployment Target** | Netlify (Frontend SPA), Render/VPS (Backend API) |
+| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, Lucide Icons, Framer Motion |
+| **Backend** | FastAPI, Python 3.11+, Uvicorn, Gunicorn, Pydantic v2 |
+| **LLM & VLM** | Google Gemini 2.0 Flash, Gemini 2.5 Flash (Vision) |
+| **Vector Database** | Pinecone Serverless (3072 dimensions, Cosine) |
+| **Embeddings** | Google Gemini `models/text-embedding-004` |
+| **Knowledge Graph** | JSON-KV Store / LightRAG dual store |
+| **Document Processing** | PyMuPDF (fitz), pdfplumber, python-docx, pypdfium2 |
+| **Cloud & Storage** | AWS S3, Docker, Docker Compose, Nginx |
 
 ---
 
-## 🚀 Quick Start Guide
-
-### Prerequisites
-- **Python 3.10+** (Python 3.13 recommended)
-- **Node.js 18+** & `npm`
-- **Ollama** running locally (`ollama serve`) with `llama3.2` and `nomic-embed-text`
-- *(Optional)* **NVIDIA GPU** with CUDA drivers for accelerated layout parsing
-
----
+## ⚡ Quick Start (Local Development)
 
 ### 1. Backend Setup
-
 ```bash
-# Navigate to backend
 cd backend
 
-# Option A: Automatic setup script (Windows)
+# Option A: Windows 1-Click Startup
 .\start.bat
 
-# Option B: Manual setup
+# Option B: Manual Setup
 python -m venv .venv
-.venv\Scripts\activate
+# On Windows: .venv\Scripts\activate | On Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
+
+# Configure your .env file
+cp .env.example .env
+# Fill in GEMINI_API_KEY and PINECONE_API_KEY in .env
+
+# Run FastAPI server
 uvicorn app.main:app --reload --port 8000
 ```
-Backend API interactive documentation is available at: `http://localhost:8000/docs`
+Interactive API documentation: `http://localhost:8000/docs`
 
 ---
 
 ### 2. Frontend Setup
-
 ```bash
-# Navigate to frontend
 cd frontend
-
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
 ```
 Open `http://localhost:5173` in your browser.
 
 ---
 
-## 🌐 Netlify Frontend Deployment
-
-The frontend includes native deployment configurations for **Netlify**:
-
-- **Build Configuration**: [netlify.toml](file:///c:/Users/lenovo/Desktop/ASIMOVX/Deep_Tutor_MVP/frontend/netlify.toml)
-- **SPA Routing Redirects**: [public/_redirects](file:///c:/Users/lenovo/Desktop/ASIMOVX/Deep_Tutor_MVP/frontend/public/_redirects)
-
-### Deploying to Netlify
-1. Connect your GitHub repository to [Netlify.com](https://www.netlify.com/).
-2. Set build parameters:
-   - **Base directory**: `frontend`
-   - **Build command**: `npm run build`
-   - **Publish directory**: `frontend/dist`
-3. Add Environment Variable:
-   - `VITE_API_BASE_URL` = `https://your-backend-api.com/api`
-4. Click **Deploy Site**!
-
----
-
-## 📊 RAG Benchmark & Evaluation
-
-Run the automated DeepEval & Ragas evaluation suite:
-
+### 3. Ingest Textbooks via VLM
 ```bash
 cd backend
-python evaluate_rag.py
+python scripts/ingest_textbooks_vlm.py --subject all --concurrency 5 --dpi 180
 ```
-
-Generated reports are saved directly to:
-- 📄 [rag_evaluation_report.md](file:///c:/Users/lenovo/Desktop/ASIMOVX/Deep_Tutor_MVP/backend/rag_evaluation_report.md)
-- 📊 [deepeval_ragas_evaluation.json](file:///c:/Users/lenovo/Desktop/ASIMOVX/Deep_Tutor_MVP/backend/deepeval_ragas_evaluation.json)
 
 ---
 
-## 📜 License
+## 🐳 Docker Deployment
 
-Distributed under the MIT License. Built with ❤️ by the Indie-Tutor Team.
-#
+Run both frontend and backend in production containers:
+
+```bash
+# Set your environment variables in .env in project root
+docker compose up --build -d
+```
+Access the application at `http://localhost`.
+
+For full production cloud deployment steps, see **[CLOUD_DEPLOYMENT.md](file:///c:/Users/lenovo/Desktop/ASIMOVX/DeepTutor/CLOUD_DEPLOYMENT.md)**.

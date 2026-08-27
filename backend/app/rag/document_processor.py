@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from app.core.config import get_settings
+from app.rag.topic_sanitizer import clean_and_format_topic, deduplicate_and_rank_topics, is_valid_academic_topic
 
 settings = get_settings()
 
@@ -946,10 +947,8 @@ def extract_key_topics(chunks: List[Dict]) -> List[str]:
         # 1. Section titles from Docling/pdfplumber metadata
         section_title = chunk.get("metadata", {}).get("section_title", "")
         if section_title:
-            # Clean section numbers like '2.1. Decision Trees' -> 'Decision Trees'
-            clean_sec = re.sub(r'^(?:\d+(?:\.\d+)*\s*)', '', section_title).strip()
-            clean_sec_lower = clean_sec.lower()
-            if 4 <= len(clean_sec) <= 50 and not any(sw in clean_sec_lower for sw in META_STOPWORDS):
+            clean_sec = clean_and_format_topic(section_title)
+            if clean_sec:
                 candidates_counts[clean_sec] = candidates_counts.get(clean_sec, 0) + 6
 
         text = chunk.get("text", "")
@@ -957,19 +956,16 @@ def extract_key_topics(chunks: List[Dict]) -> List[str]:
             continue
 
         # 2. Text headings / numbered section headers
-        for h in re.findall(r'(?:^|\n)(?:#{1,4}\s*|\d+(?:\.\d+)*\s+)?([A-Z][A-Za-z0-9\s\-\:\(\)]{3,45})(?=\n|\:|\.|\ {2,})', text):
-            h_clean = re.sub(r'^(?:\d+(?:\.\d+)*\s*)', '', h).strip()
-            h_lower = h_clean.lower()
-            if 4 <= len(h_clean) <= 40 and not any(sw in h_lower for sw in META_STOPWORDS):
-                if not any(word in META_STOPWORDS for word in h_lower.split()[:1]):
-                    candidates_counts[h_clean] = candidates_counts.get(h_clean, 0) + 4
+        for h in re.findall(r'(?:^|\n)(?:#{1,4}\s*|\d+(?:\.\d+)*\s+)?([A-Z][A-Za-z0-9\s\-\:\(\)]{3,50})(?=\n|\:|\.|\ {2,})', text):
+            clean_h = clean_and_format_topic(h)
+            if clean_h:
+                candidates_counts[clean_h] = candidates_counts.get(clean_h, 0) + 4
 
-        # 3. Capitalized multi-word concepts (e.g. 'Decision Trees', 'Random Forests', 'Naïve Bayes')
-        for c in re.findall(r'\b([A-Z][A-Za-z0-9\-]+(?:\s+[A-Z][A-Za-z0-9\-]+){1,3})\b', text):
-            c_clean = c.strip()
-            c_lower = c_clean.lower()
-            if 4 <= len(c_clean) <= 45 and not any(w in META_STOPWORDS for w in c_lower.split()):
-                candidates_counts[c_clean] = candidates_counts.get(c_clean, 0) + 2
+        # 3. Capitalized multi-word concepts (e.g. 'Treaty of Vienna', 'Unification of Italy', 'Decision Trees')
+        for c in re.findall(r'\b([A-Z][A-Za-z0-9\-]+(?:\s+(?:of|and|the|in|for|to)\s+[A-Z][A-Za-z0-9\-]+|\s+[A-Z][A-Za-z0-9\-]+){1,3})\b', text):
+            clean_c = clean_and_format_topic(c)
+            if clean_c:
+                candidates_counts[clean_c] = candidates_counts.get(clean_c, 0) + 2
 
         # 4. Known domain acronyms
         for word in re.findall(r'\b([A-Z]{2,6})\b', text):
@@ -977,16 +973,5 @@ def extract_key_topics(chunks: List[Dict]) -> List[str]:
                 mapped = ACRONYM_MAP[word]
                 candidates_counts[mapped] = candidates_counts.get(mapped, 0) + 3
 
-    sorted_topics = sorted(candidates_counts.items(), key=lambda x: x[1], reverse=True)
-
-    final_topics, seen_lower = [], set()
-    for topic_name, _ in sorted_topics:
-        t_lower = topic_name.lower()
-        if t_lower in seen_lower or any(t_lower in s for s in seen_lower):
-            continue
-        seen_lower.add(t_lower)
-        final_topics.append(topic_name)
-        if len(final_topics) >= 20:
-            break
-
-    return final_topics
+    sorted_candidates = [topic for topic, _ in sorted(candidates_counts.items(), key=lambda x: x[1], reverse=True)]
+    return deduplicate_and_rank_topics(sorted_candidates, max_topics=15)
