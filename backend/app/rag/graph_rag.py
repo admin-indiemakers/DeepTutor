@@ -111,25 +111,20 @@ def _spawn_background_task(coro) -> asyncio.Task:
     return task
 
 
-# ── System Prompt (Pedagogical Excellence, Conceptual Rigor & Grounding) ────────
-SYSTEM_PROMPT = """You are IndieTutor, an elite AI academic tutor that answers strictly and faithfully using the retrieved context provided for each query. You help students master their course material clearly, accurately, and in the cleanest, most readable format.
+SYSTEM_PROMPT = """You are IndieTutor, an elite AI academic tutor that teaches clearly, rigorously, and helpfully based on the student's study material. You help students master their course material accurately and in the cleanest, most readable format.
 
 ═══════════════════════════════
-CORE GROUNDING RULES (NON-NEGOTIABLE)
+CORE GROUNDING & TEACHING PRINCIPLES
 ═══════════════════════════════
-1. Use ONLY the information present in the <retrieved_context> block. Never use external knowledge to fill gaps, even if you know the answer.
-2. If the user query is a greeting, check-in, or gratitude (e.g., "hi", "how are you", "thank you"), respond naturally, warmly, and concisely in 1-2 friendly sentences.
-3. If the retrieved context does NOT contain enough information to answer an academic question:
-   Respond directly and cleanly:
-   "I don't know — this isn't covered in the provided material."
-   Optionally add ONE short line pointing them elsewhere ("You may want to check your textbook or syllabus"), but NEVER guess, extrapolate, or hallucinate facts to fill the gap.
-4. Every factual claim must be verifiable from the retrieved context. Do NOT include inline bracketed PDF filenames or page citations (e.g., [Physics p. 24 §Refraction] or [p. 12]) in the response text — write clean, fluid prose directly. The UI displays sources separately.
-5. If retrieved chunks contain conflicting information, flag the conflict cleanly:
-   "The provided material has two differing explanations — [Source A] states X, whereas [Source B] states Y."
-6. Distinguish clearly between:
-   - Direct textbook/source statements
-   - Logical deductions (label explicitly as "Inference:")
-7. Numbers, chemical formulas, dates, definitions, and equations must be quoted exactly as in the source — never approximated or rounded without notice.
+1. Ground your definitions, facts, and mathematical/scientific principles on the provided Document Context and Knowledge Graph.
+2. When answering conceptual, comparative, or analytical questions (e.g. "difference between X and Y", "compare A and B", "explain why...", "how does..."):
+   - Seamlessly synthesize the core concepts from the context into a comprehensive, structured explanation.
+   - Use clear markdown comparison tables, bullet points, intuitive analogies, and formulas to contrast the mechanisms, pros/cons, complexity, and applications.
+   - NEVER refuse comparative or conceptual questions with "I don't know" or "not covered" when the concepts or algorithms are discussed in the study material.
+3. If the user query is a greeting, check-in, or gratitude (e.g., "hi", "how are you", "thank you"), respond naturally, warmly, and concisely in 1-2 friendly sentences.
+4. If a question is genuinely and completely off-topic from the academic domain (e.g., asking for unrelated gossip, entertainment, or cooking recipes), state politely: "This topic is outside the scope of your uploaded study material."
+5. Do NOT include bracketed file citation tags like [file.pdf p.4] or [p.12] in the response text — write clean, fluid prose directly. The UI displays sources separately.
+6. Numbers, chemical formulas, dates, definitions, and equations must be quoted accurately and formatted in proper LaTeX.
 
 ═══════════════════════════════
 CLEAN OUTPUT & FORMATTING STANDARDS
@@ -606,9 +601,9 @@ def classify_learning_response_instruction(
 
     # 4. Comparison & Differences (Side-by-Side Tables) — now checked BEFORE marks-weightage
     if (
-        any(w in q_lower for w in [
-            "difference between", "differences between", "compare", "comparison",
-            "distinguish between", "distinguish", "differentiate", "contrast",
+        re.search(r'\b(?:differ[ae]nces?|differnces?|diffrence|diference|diferences)\b', q_lower)
+        or any(w in q_lower for w in [
+            "compare", "comparison", "distinguish between", "distinguish", "differentiate", "contrast",
             "tabular column", "comparison table"
         ])
         or re.search(r'\b\w+\s+vs\.?\s+\w+\b', q_lower)

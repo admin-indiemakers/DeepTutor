@@ -493,24 +493,29 @@ export default function ChatPage() {
 
   // Fetch knowledge graph for active session/topic with primitive dependencies and cache guard
   const fetchKnowledgeGraph = useCallback(async () => {
-    const topicId = activeSession?.topic_id || activeSession?.id || 'general'
+    const topicId = activeSession?.topic_id || activeSession?.id || sessionId
+    if (!topicId) {
+      setLiveGraphContext({ entities: [], relationships: [] })
+      return
+    }
     try {
       const res = await documentsApi.graph(topicId)
       const nodes = res.data?.graph?.nodes || []
       const edges = res.data?.graph?.edges || []
-      if (nodes.length > 0 || edges.length > 0) {
-        setLiveGraphContext({ entities: nodes, relationships: edges })
-      }
+      setLiveGraphContext({ entities: nodes, relationships: edges })
     } catch (err) {
       console.error('Failed to load knowledge graph:', err)
+      setLiveGraphContext({ entities: [], relationships: [] })
     }
-  }, [activeSession?.id, activeSession?.topic_id])
+  }, [activeSession?.id, activeSession?.topic_id, sessionId])
 
   useEffect(() => {
-    if (activeSession?.id || showGraphPanel) {
+    if (activeSession?.id || sessionId) {
       fetchKnowledgeGraph()
+    } else {
+      setLiveGraphContext({ entities: [], relationships: [] })
     }
-  }, [activeSession?.id, showGraphPanel, fetchKnowledgeGraph])
+  }, [activeSession?.id, sessionId, fetchKnowledgeGraph])
 
   // Fetch Learn-scoped sessions fresh on mount and window focus (excludes subject chapter chats)
   const { refetch: refetchSessions } = useQuery({
@@ -605,7 +610,13 @@ export default function ChatPage() {
           graph_context: accGraph,
           grounding: accGrounding,
         }
-        setExtMessages((prev) => [...prev, assistantMsg])
+        setExtMessages((prev) => {
+          const updated = [...prev, assistantMsg]
+          if (currentSessionId) {
+            messagesCacheRef.current.set(currentSessionId, updated)
+          }
+          return updated
+        })
         clearStreamingContent()
         setStreaming(false)
       },
@@ -618,7 +629,13 @@ export default function ChatPage() {
           content: accContent || fallbackMsg,
           created_at: new Date().toISOString(),
         }
-        setExtMessages((prev) => [...prev, fallback])
+        setExtMessages((prev) => {
+          const updated = [...prev, fallback]
+          if (currentSessionId) {
+            messagesCacheRef.current.set(currentSessionId, updated)
+          }
+          return updated
+        })
         clearStreamingContent()
         setStreaming(false)
       },
@@ -626,12 +643,15 @@ export default function ChatPage() {
   // Use primitive activeSession?.id instead of whole object to prevent unnecessary recreations
   }, [sessionId, input, isStreaming, activeSession?.id, token, aiLanguage, navigate, refetchSessions, setActiveSession, addMessage, appendStreamToken, clearStreamingContent, setStreaming])
 
-  // Load session messages when sessionId changes
+  // Load session messages ONLY when sessionId changes
   useEffect(() => {
     if (!sessionId) {
       setActiveSession(null)
       setExtMessages([])
       setMessages([])
+      setLiveGraphContext({ entities: [], relationships: [] })
+      setLiveSources([])
+      setLoadingMessages(false)
       return
     }
 
@@ -640,25 +660,31 @@ export default function ChatPage() {
       return
     }
 
-    const found = sessions.find((s) => s.id === sessionId)
+    const currentSessions = useChatStore.getState().sessions
+    const found = currentSessions.find((s) => s.id === sessionId)
     if (found) {
       setActiveSession(found)
     }
 
-    // 0ms instant display from local memory cache
+    // 0ms instant display if valid cache exists for THIS EXACT session ID
     const cached = messagesCacheRef.current.get(sessionId)
     if (cached && cached.length > 0) {
       setExtMessages(cached)
       setLoadingMessages(false)
     } else {
+      // Immediately wipe previous session messages to eliminate any ghost/lingering chats
       setExtMessages([])
       setMessages([])
       setLoadingMessages(true)
     }
 
+    let isCancelled = false
+
     chatApi
       .messages(sessionId)
       .then((res) => {
+        if (isCancelled) return
+        const rawList = Array.isArray(res.data) ? res.data : []
         if (!found) {
           setActiveSession({
             id: sessionId,
@@ -668,16 +694,17 @@ export default function ChatPage() {
             started_at: new Date().toISOString(),
           })
         }
-        const msgs: ExtendedMessage[] = res.data.map((m: any) => ({
+        const msgs: ExtendedMessage[] = rawList.map((m: any) => ({
           ...m,
           sources: m.metadata?.sources ?? [],
           graph_context: m.metadata?.graph_context ?? null,
         }))
         messagesCacheRef.current.set(sessionId, msgs)
         setExtMessages(msgs)
-        setMessages(res.data)
+        setMessages(rawList)
       })
       .catch((err) => {
+        if (isCancelled) return
         console.error('Failed to load session messages:', err)
         if (err.response?.status === 404 || err.response?.status === 401) {
           // Stale or deleted session ID — cleanly reset and navigate to clean chat
@@ -688,9 +715,15 @@ export default function ChatPage() {
         }
       })
       .finally(() => {
-        setLoadingMessages(false)
+        if (!isCancelled) {
+          setLoadingMessages(false)
+        }
       })
-  }, [sessionId, sessions, user?.id, navigate, setActiveSession, setMessages])
+
+    return () => {
+      isCancelled = true
+    }
+  }, [sessionId, user?.id, navigate, setActiveSession, setMessages])
 
   // Automatically submit initial prompt on first prompt only (if session is fresh)
   useEffect(() => {
@@ -947,6 +980,10 @@ export default function ChatPage() {
           <button
             onClick={() => {
               setActiveSession(null)
+              setExtMessages([])
+              setMessages([])
+              setLiveGraphContext({ entities: [], relationships: [] })
+              setLiveSources([])
               navigate('/chat')
               setMobileLeftOpen(false)
             }}
@@ -963,9 +1000,20 @@ export default function ChatPage() {
                   <div
                     key={s.id}
                     onClick={() => {
-                      setActiveSession(s)
-                      navigate(`/chat/${s.id}`)
-                      setMobileLeftOpen(false)
+                      if (sessionId !== s.id) {
+                        setActiveSession(s)
+                        const cached = messagesCacheRef.current.get(s.id)
+                        if (cached && cached.length > 0) {
+                          setExtMessages(cached)
+                          setLoadingMessages(false)
+                        } else {
+                          setExtMessages([])
+                          setMessages([])
+                          setLoadingMessages(true)
+                        }
+                        navigate(`/chat/${s.id}`)
+                        setMobileLeftOpen(false)
+                      }
                     }}
                     className={`group flex items-center justify-between px-3 py-2.5 rounded-[1.25rem] text-xs cursor-pointer transition-all ${isSelected
                       ? 'bg-indigo-50 text-indigo-900 font-extrabold border border-indigo-200 shadow-2xs'
@@ -1478,7 +1526,7 @@ export default function ChatPage() {
               <h4 className="text-md font-bold text-text-primary group-hover:text-success transition-colors">
                 {t.chat.knowledgeGraph}
               </h4>
-              {liveGraphContext.entities.length > 0 && (
+              {(activeSession?.id || sessionId) && liveGraphContext.entities.length > 0 && (
                 <span className="text-xs font-bold bg-success-soft text-success px-2 py-0.5 rounded-full border border-success/30">
                   {liveGraphContext.entities.length} Nodes
                 </span>
